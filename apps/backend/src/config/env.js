@@ -37,6 +37,18 @@ const env = {
     const n = typeof v === "string" ? parseInt(v, 10) : NaN;
     return Number.isFinite(n) && n > 0 ? n : 10;
   })(),
+  /**
+   * "jwt" (default) keeps current auth flow.
+   * "firebase" enables Firebase ID token verification in middleware.
+   */
+  AUTH_PROVIDER: process.env.AUTH_PROVIDER || "jwt",
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
+  STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || "cloudinary",
+  FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET || "",
+  DB_FALLBACK_TO_MONGODB: (() => {
+    const raw = String(process.env.DB_FALLBACK_TO_MONGODB || "true").toLowerCase().trim();
+    return raw === "1" || raw === "true" || raw === "yes";
+  })(),
 };
 
 if (env.NODE_ENV === "production" && (!env.JWT_SECRET || env.JWT_SECRET === "change-me-in-production")) {

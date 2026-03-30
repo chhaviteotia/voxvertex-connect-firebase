@@ -1,8 +1,7 @@
 const bcrypt = require("bcrypt");
-const cloudinary = require("cloudinary").v2;
 const { userRepository } = require("../repositories");
 const { USER_TYPES } = require("../config/constants");
-const { env } = require("../config/env");
+const { uploadImageWithFallback } = require("../services/fileStorage");
 
 function ensureBusiness(req, res) {
   if (!req.user || req.user.type !== USER_TYPES.BUSINESS) {
@@ -202,24 +201,17 @@ async function uploadAvatar(req, res) {
     if (!ALLOWED_MIMES.includes(mimetype)) {
       return res.status(400).json({ success: false, error: "Only JPG, PNG, GIF, or WebP allowed." });
     }
-    if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
-      return res.status(503).json({ success: false, error: "Image upload is not configured." });
-    }
-    cloudinary.config({
-      cloud_name: env.CLOUDINARY_CLOUD_NAME,
-      api_key: env.CLOUDINARY_API_KEY,
-      api_secret: env.CLOUDINARY_API_SECRET,
+    const uploaded = await uploadImageWithFallback({
+      buffer,
+      mimetype,
+      destination: `users/${req.user.userId}/avatar-${Date.now()}`,
+      cloudinaryFolder: "voxvertex-avatars",
     });
-    const b64 = buffer.toString("base64");
-    const dataUri = `data:${mimetype};base64,${b64}`;
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload(dataUri, { folder: "voxvertex-avatars" }, (err, res) => (err ? reject(err) : resolve(res)));
-    });
-    const user = await userRepository.updateById(req.user.userId, { avatarUrl: result.secure_url });
+    const user = await userRepository.updateById(req.user.userId, { avatarUrl: uploaded.url });
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found." });
     }
-    return res.json({ success: true, avatarUrl: result.secure_url });
+    return res.json({ success: true, avatarUrl: uploaded.url, storageProvider: uploaded.provider });
   } catch (err) {
     console.error("[businessSettings.uploadAvatar]", err);
     return res.status(500).json({ success: false, error: err.message || "Failed to upload photo." });

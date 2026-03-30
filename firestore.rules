@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && request.auth.token.type == role;
+    }
+
+    // User profile ownership.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Business writes only by business users.
+    match /requirements/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if hasRole("business");
+    }
+
+    // Expert writes only by experts.
+    match /proposals/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if hasRole("expert");
+    }
+
+    // Default deny for everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

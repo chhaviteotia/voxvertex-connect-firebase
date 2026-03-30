@@ -1,7 +1,6 @@
 const { USER_TYPES } = require("../config/constants");
 const { proposalRepository, requirementRepository } = require("../repositories");
-const cloudinary = require("cloudinary").v2;
-const { env } = require("../config/env");
+const { uploadRawWithFallback } = require("../services/fileStorage");
 
 function ensureExpert(req, res, next) {
   if (req.user?.type !== USER_TYPES.EXPERT) {
@@ -101,45 +100,29 @@ async function createProposal(req, res) {
 
     const uploadedFiles = Array.isArray(req.files) ? req.files : [];
     if (uploadedFiles.length > 0) {
-      if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
-        return res.status(503).json({ success: false, error: "Deliverables upload is not configured." });
-      }
-      cloudinary.config({
-        cloud_name: env.CLOUDINARY_CLOUD_NAME,
-        api_key: env.CLOUDINARY_API_KEY,
-        api_secret: env.CLOUDINARY_API_SECRET,
-      });
       const deliverableFiles = {};
       for (const file of uploadedFiles) {
         const fieldName = String(file.fieldname || "");
         if (!fieldName.startsWith("deliverableFiles__")) continue;
         const deliverableId = fieldName.slice("deliverableFiles__".length).trim();
         if (!deliverableId) continue;
-        const uploadResult = await new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            {
-              folder: "voxvertex-proposal-deliverables",
-              resource_type: "raw",
-              use_filename: true,
-              unique_filename: true,
-            },
-            (err, result) => (err ? reject(err) : resolve(result))
-          );
-          stream.end(file.buffer);
+        const destination = `proposals/${userId}/${Date.now()}-${file.originalname}`;
+        const uploaded = await uploadRawWithFallback({
+          buffer: file.buffer,
+          mimetype: file.mimetype,
+          destination,
+          cloudinaryFolder: "voxvertex-proposal-deliverables",
+          originalName: file.originalname,
         });
         if (!deliverableFiles[deliverableId]) deliverableFiles[deliverableId] = [];
         deliverableFiles[deliverableId].push({
           originalName: file.originalname,
-          url: uploadResult.secure_url,
-          downloadUrl: cloudinary.url(uploadResult.public_id, {
-            resource_type: "raw",
-            type: "upload",
-            flags: "attachment",
-            secure: true,
-          }),
+          url: uploaded.url,
+          downloadUrl: uploaded.downloadUrl || uploaded.url,
           mimeType: file.mimetype,
           size: file.size,
-          publicId: uploadResult.public_id,
+          publicId: uploaded.publicId || "",
+          storageProvider: uploaded.provider,
           uploadedAt: new Date(),
         });
       }

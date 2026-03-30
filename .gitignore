@@ -21,6 +21,10 @@ coverage
 # Vercel
 .vercel
 
+# Firebase
+.firebase
+firebase-debug.log
+
 # Build Outputs
 .next/
 out/

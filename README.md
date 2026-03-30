@@ -2,7 +2,8 @@
 
 Monorepo: **frontend** (React + Vite) and **backend** (Node + Express). Database is MongoDB by default; the backend is structured so you can migrate to AWS (DynamoDB/DocumentDB) later without changing API or frontend.
 
-- **Deploy:** See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for Vercel, AWS, and database migration.
+- **Deploy (Firebase):** Use root scripts `firebase:deploy`, `firebase:deploy:hosting`, `firebase:deploy:functions`, and `firebase:deploy:rules`.
+- **Deploy (Vercel/AWS):** See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** if using that stack.
 - **Env:** Copy [.env.example](.env.example) to `.env` and set `MONGO_URI` (and optionally `VITE_API_URL` for production frontend).
 
 ## Using this example
