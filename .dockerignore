@@ -1,0 +1,9 @@
+node_modules
+apps/frontend
+packages
+.git
+.env
+.env.*
+!.env.example
+*.md
+docs
