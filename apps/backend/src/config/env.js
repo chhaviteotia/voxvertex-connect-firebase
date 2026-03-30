@@ -38,10 +38,10 @@ const env = {
     return Number.isFinite(n) && n > 0 ? n : 10;
   })(),
   /**
-   * "jwt" (default) keeps current auth flow.
-   * "firebase" enables Firebase ID token verification in middleware.
+   * "firebase" (default) tries Firebase ID token first, then JWT fallback.
+   * "jwt" uses JWT verification only.
    */
-  AUTH_PROVIDER: process.env.AUTH_PROVIDER || "jwt",
+  AUTH_PROVIDER: process.env.AUTH_PROVIDER || "firebase",
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
   STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || "cloudinary",
   FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET || "",

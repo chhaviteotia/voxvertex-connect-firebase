@@ -13,7 +13,8 @@
     "firebase:emulators": "firebase emulators:start",
     "firebase:deploy:hosting": "npm run build --workspace=frontend && firebase deploy --only hosting",
     "firebase:deploy:functions": "firebase deploy --only functions",
-    "firebase:deploy:rules": "firebase deploy --only firestore:rules,storage"
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules",
+    "firebase:deploy:storage": "firebase deploy --only storage"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
