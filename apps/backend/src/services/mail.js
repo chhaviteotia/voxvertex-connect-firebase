@@ -7,6 +7,7 @@ function isSmtpConfigured() {
 
 /**
  * Sends password reset email when SMTP_* env vars are set.
+ * If the client uses Firebase Auth `sendPasswordResetEmail`, you usually do not need SMTP.
  * If not configured: logs reset URL in non-production; in production logs a warning only.
  */
 async function sendPasswordResetEmail(toEmail, resetUrl) {

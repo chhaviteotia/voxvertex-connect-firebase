@@ -4,6 +4,5 @@ packages
 .git
 .env
 .env.*
-!.env.example
 *.md
 docs

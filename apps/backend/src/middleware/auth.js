@@ -2,6 +2,10 @@ const jwt = require("jsonwebtoken");
 const { env } = require("../config/env");
 const { getFirebaseAdmin } = require("../config/firebaseAdmin");
 
+/**
+ * Resolves the caller: Firebase ID token first (when AUTH_PROVIDER is not "jwt" and Admin is available),
+ * then JWT. Set AUTH_PROVIDER=jwt to use legacy JWT-only verification.
+ */
 async function authMiddleware(req, res, next) {
   const header = req.headers.authorization || "";
   const [, token] = header.split(" ");

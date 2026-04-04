@@ -2,7 +2,7 @@ const cloudinary = require("cloudinary").v2;
 const { env } = require("../config/env");
 const { getStorageBucket } = require("../config/firebaseAdmin");
 
-let didWarnFallback = false;
+let didWarnCloudinaryFallback = false;
 
 function configureCloudinary() {
   if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
@@ -16,10 +16,14 @@ function configureCloudinary() {
   return true;
 }
 
+function cloudinaryConfigured() {
+  return Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+}
+
 async function uploadToFirebaseStorage({ buffer, mimetype, destination }) {
   const bucket = getStorageBucket();
   if (!bucket) {
-    throw new Error("Firebase Storage is not configured.");
+    throw new Error("Firebase Storage is not configured (check GCLOUD_PROJECT / FIREBASE_STORAGE_BUCKET).");
   }
   const object = bucket.file(destination);
   await object.save(buffer, {
@@ -76,17 +80,35 @@ async function uploadToCloudinaryImage({ buffer, mimetype, folder }) {
   return { url: result.secure_url, downloadUrl: result.secure_url, provider: "cloudinary", publicId: result.public_id };
 }
 
+async function maybeFallbackToCloudinaryImage(err, args) {
+  if (env.STORAGE_ALLOW_CLOUDINARY_FALLBACK && cloudinaryConfigured()) {
+    if (!didWarnCloudinaryFallback) {
+      didWarnCloudinaryFallback = true;
+      console.warn("[fileStorage] Firebase Storage failed; falling back to Cloudinary (STORAGE_ALLOW_CLOUDINARY_FALLBACK=true).", err?.message);
+    }
+    return uploadToCloudinaryImage(args);
+  }
+  throw err;
+}
+
+async function maybeFallbackToCloudinaryRaw(err, args) {
+  if (env.STORAGE_ALLOW_CLOUDINARY_FALLBACK && cloudinaryConfigured()) {
+    if (!didWarnCloudinaryFallback) {
+      didWarnCloudinaryFallback = true;
+      console.warn("[fileStorage] Firebase Storage failed; falling back to Cloudinary (STORAGE_ALLOW_CLOUDINARY_FALLBACK=true).", err?.message);
+    }
+    return uploadToCloudinaryRaw(args);
+  }
+  throw err;
+}
+
 async function uploadImageWithFallback({ buffer, mimetype, destination, cloudinaryFolder }) {
   const provider = (env.STORAGE_PROVIDER || "cloudinary").toLowerCase();
   if (provider === "firebase") {
     try {
       return await uploadToFirebaseStorage({ buffer, mimetype, destination });
-    } catch (_err) {
-      if (!didWarnFallback) {
-        didWarnFallback = true;
-        console.warn("Firebase Storage upload failed. Falling back to Cloudinary.");
-      }
-      return uploadToCloudinaryImage({ buffer, mimetype, folder: cloudinaryFolder });
+    } catch (err) {
+      return maybeFallbackToCloudinaryImage(err, { buffer, mimetype, folder: cloudinaryFolder });
     }
   }
   return uploadToCloudinaryImage({ buffer, mimetype, folder: cloudinaryFolder });
@@ -97,12 +119,8 @@ async function uploadRawWithFallback({ buffer, mimetype, destination, cloudinary
   if (provider === "firebase") {
     try {
       return await uploadToFirebaseStorage({ buffer, mimetype, destination });
-    } catch (_err) {
-      if (!didWarnFallback) {
-        didWarnFallback = true;
-        console.warn("Firebase Storage upload failed. Falling back to Cloudinary.");
-      }
-      return uploadToCloudinaryRaw({ buffer, folder: cloudinaryFolder, originalName });
+    } catch (err) {
+      return maybeFallbackToCloudinaryRaw(err, { buffer, folder: cloudinaryFolder, originalName });
     }
   }
   return uploadToCloudinaryRaw({ buffer, folder: cloudinaryFolder, originalName });

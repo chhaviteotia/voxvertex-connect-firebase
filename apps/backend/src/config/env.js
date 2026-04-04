@@ -13,6 +13,20 @@ if (!treatAsProduction && fs.existsSync(dotenvPath)) {
   dotenv.config({ path: dotenvPath, override: false });
 }
 
+/** On deployed Cloud Functions, default to Firestore unless DB_ADAPTER or MONGO_URI override. */
+function defaultDbAdapter() {
+  const explicit = process.env.DB_ADAPTER;
+  if (explicit != null && String(explicit).trim() !== "") {
+    return String(explicit).toLowerCase();
+  }
+  if (isFirebaseCloudRuntime()) {
+    const mongo = String(process.env.MONGO_URI || "").trim();
+    const usesLocalMongo = !mongo || mongo.includes("localhost") || mongo.includes("127.0.0.1");
+    if (usesLocalMongo) return "firebase";
+  }
+  return "mongodb";
+}
+
 const env = {
   NODE_ENV:
     process.env.NODE_ENV ||
@@ -23,8 +37,8 @@ const env = {
     return Number.isFinite(n) && n > 0 ? n : 5000;
   })(),
   MONGO_URI: process.env.MONGO_URI || "mongodb://localhost:27017/voxvertex",
-  /** "mongodb" (default) | "aws" – switch in repositories/index.js */
-  DB_ADAPTER: process.env.DB_ADAPTER || "mongodb",
+  /** "mongodb" | "firebase" (default on Cloud Functions without Atlas URI) | "aws" */
+  DB_ADAPTER: defaultDbAdapter(),
   JWT_SECRET: process.env.JWT_SECRET || "change-me-in-production",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
@@ -47,8 +61,37 @@ const env = {
    */
   AUTH_PROVIDER: process.env.AUTH_PROVIDER || "firebase",
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
-  STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || "cloudinary",
+  /**
+   * Web API key (Identity Toolkit). Set on Cloud Functions for Firebase password sign-in sync.
+   * Same value as the Firebase client Web API key in project settings.
+   */
+  FIREBASE_WEB_API_KEY: process.env.FIREBASE_WEB_API_KEY || "",
+  /**
+   * Default Firebase Storage when deployed or when FIREBASE_STORAGE_BUCKET is set (Firebase-first).
+   * Set STORAGE_PROVIDER=cloudinary to force Cloudinary when both are configured.
+   */
+  STORAGE_PROVIDER: (() => {
+    const ex = process.env.STORAGE_PROVIDER;
+    if (ex != null && String(ex).trim() !== "") return String(ex).toLowerCase();
+    if (isFirebaseCloudRuntime()) return "firebase";
+    const bucket = String(process.env.FIREBASE_STORAGE_BUCKET || "").trim();
+    return bucket ? "firebase" : "cloudinary";
+  })(),
   FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET || "",
+  /** If true and Cloudinary is configured, fall back when Firebase Storage upload fails. Default false. */
+  STORAGE_ALLOW_CLOUDINARY_FALLBACK: String(process.env.STORAGE_ALLOW_CLOUDINARY_FALLBACK || "")
+    .toLowerCase()
+    .trim() === "true",
+  /**
+   * Create Firebase Auth users on signup (enables password reset email via Firebase, no SMTP).
+   * Defaults true on Cloud Functions; set FIREBASE_AUTH_SYNC=false to disable.
+   */
+  FIREBASE_AUTH_SYNC: (() => {
+    const v = String(process.env.FIREBASE_AUTH_SYNC || "").toLowerCase().trim();
+    if (v === "false" || v === "0" || v === "no") return false;
+    if (v === "true" || v === "1" || v === "yes") return true;
+    return isFirebaseCloudRuntime();
+  })(),
   DB_FALLBACK_TO_MONGODB: (() => {
     const raw = String(process.env.DB_FALLBACK_TO_MONGODB || "true").toLowerCase().trim();
     return raw === "1" || raw === "true" || raw === "yes";

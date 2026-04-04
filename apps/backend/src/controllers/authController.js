@@ -5,6 +5,8 @@ const { userRepository } = require("../repositories");
 const { env } = require("../config/env");
 const { USER_TYPES } = require("../config/constants");
 const { sendPasswordResetEmail } = require("../services/mail");
+const { getFirebaseAdmin } = require("../config/firebaseAdmin");
+const { signInWithPassword } = require("../services/firebaseAuthIdentity");
 
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 8;
@@ -65,6 +67,45 @@ function hashPasswordResetToken(rawToken) {
   return crypto.createHash("sha256").update(rawToken, "utf8").digest("hex");
 }
 
+async function tryCreateFirebaseAuthUser(uid, email, password, type) {
+  if (!env.FIREBASE_AUTH_SYNC) return;
+  const admin = getFirebaseAdmin();
+  if (!admin) return;
+  try {
+    await admin.auth().createUser({
+      uid: String(uid),
+      email,
+      password,
+      emailVerified: false,
+      disabled: false,
+    });
+    await admin.auth().setCustomUserClaims(String(uid), { type: String(type) });
+  } catch (e) {
+    const code = e?.errorInfo?.code || e?.code;
+    if (code === "auth/email-already-exists" || code === "auth/uid-already-exists") {
+      console.warn(
+        "[auth] Firebase Auth: account already exists for this email or uid (e.g. second business/expert on same email). SMTP/custom reset still applies for that case."
+      );
+    } else {
+      console.warn("[auth] Firebase Auth createUser failed:", code || e?.message);
+    }
+  }
+}
+
+async function syncFirebaseCustomClaims(uid, type) {
+  if (!uid || !type) return;
+  const admin = getFirebaseAdmin();
+  if (!admin || !env.FIREBASE_AUTH_SYNC) return;
+  try {
+    const user = await admin.auth().getUser(String(uid));
+    const existing = user.customClaims || {};
+    if (existing.type === type) return;
+    await admin.auth().setCustomUserClaims(String(uid), { ...existing, type: String(type) });
+  } catch {
+    /* No Firebase user or permission issue — JWT / bcrypt path still works */
+  }
+}
+
 async function signup(req, res) {
   try {
     const validation = validateSignup(req.body);
@@ -94,7 +135,61 @@ async function signup(req, res) {
       const raw = req.body.name;
       userData.name = (raw != null && String(raw).trim() !== "") ? String(raw).trim() : "";
     }
+
+    const admin = getFirebaseAdmin();
+    const firebaseAdapter = String(env.DB_ADAPTER || "").toLowerCase() === "firebase";
+    const canFirebaseFirstSignup =
+      firebaseAdapter &&
+      env.FIREBASE_AUTH_SYNC &&
+      admin &&
+      typeof userRepository.createUserWithId === "function";
+
+    let existingFirebaseByEmail = null;
+    if (canFirebaseFirstSignup) {
+      try {
+        existingFirebaseByEmail = await admin.auth().getUserByEmail(normalizedEmail);
+      } catch {
+        existingFirebaseByEmail = null;
+      }
+    }
+
+    if (canFirebaseFirstSignup && !existingFirebaseByEmail) {
+      try {
+        const rec = await admin.auth().createUser({
+          email: normalizedEmail,
+          password,
+          emailVerified: false,
+          disabled: false,
+        });
+        const uid = rec.uid;
+        try {
+          const user = await userRepository.createUserWithId(uid, { ...userData });
+          await admin.auth().setCustomUserClaims(uid, { type: normalizedType });
+          const token = signToken(user);
+          return res.status(201).json({
+            success: true,
+            user: toPublicUser(user),
+            token,
+          });
+        } catch (dbErr) {
+          try {
+            await admin.auth().deleteUser(uid);
+          } catch {
+            /* best-effort rollback */
+          }
+          throw dbErr;
+        }
+      } catch (e) {
+        const code = e?.errorInfo?.code || e?.code;
+        if (code !== "auth/email-already-exists") {
+          console.error("[authController.signup firebase-first]", e);
+          return res.status(500).json({ success: false, error: "Signup failed. Please try again." });
+        }
+      }
+    }
+
     const user = await userRepository.createUser(userData);
+    await tryCreateFirebaseAuthUser(user._id, normalizedEmail, password, normalizedType);
     const token = signToken(user);
     return res.status(201).json({
       success: true,
@@ -120,6 +215,22 @@ async function signin(req, res) {
       return res.status(401).json({ success: false, error: "Invalid email or password." });
     }
 
+    const firebaseResult = await signInWithPassword(normalizedEmail, password);
+    if (firebaseResult) {
+      const byFirebaseUid = candidates.find((c) => String(c._id) === firebaseResult.localId);
+      if (byFirebaseUid) {
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+        await userRepository.updateById(byFirebaseUid._id, { password: hashedPassword }).catch(() => {});
+        await syncFirebaseCustomClaims(firebaseResult.localId, byFirebaseUid.type);
+        const token = signToken(byFirebaseUid);
+        return res.json({
+          success: true,
+          user: toPublicUser(byFirebaseUid),
+          token,
+        });
+      }
+    }
+
     let matched = null;
     for (const u of candidates) {
       const ok = await bcrypt.compare(password, u.password);
@@ -131,6 +242,8 @@ async function signin(req, res) {
     if (!matched) {
       return res.status(401).json({ success: false, error: "Invalid email or password." });
     }
+
+    await syncFirebaseCustomClaims(String(matched._id), matched.type);
 
     const token = signToken(matched);
     return res.json({
@@ -210,6 +323,17 @@ async function resetPassword(req, res) {
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     await userRepository.completePasswordResetForUserIds(ids, hashedPassword);
+
+    const admin = getFirebaseAdmin();
+    if (admin && env.FIREBASE_AUTH_SYNC) {
+      for (const id of ids) {
+        try {
+          await admin.auth().updateUser(String(id), { password });
+        } catch {
+          /* No Firebase user for this profile — OK */
+        }
+      }
+    }
 
     return res.json({
       success: true,

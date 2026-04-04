@@ -1,9 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { sendPasswordResetEmail } from 'firebase/auth'
 import { AuthMarketingShell } from '../components/auth/AuthMarketingShell'
 import { requestPasswordReset } from '../api/auth'
+import { getFirebaseAuth, isFirebaseAuthClientConfigured } from '../config/firebaseClient'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const GENERIC_DONE =
+  'If an account exists for that email, you will receive password reset instructions shortly.'
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -28,8 +33,28 @@ export function ForgotPasswordPage() {
     }
     setIsLoading(true)
     try {
+      if (isFirebaseAuthClientConfigured()) {
+        const auth = getFirebaseAuth()
+        if (auth) {
+          try {
+            await sendPasswordResetEmail(auth, trimmed)
+            setDoneMessage(GENERIC_DONE)
+            setEmail('')
+            return
+          } catch (err: unknown) {
+            const code = typeof err === 'object' && err && 'code' in err ? String((err as { code: string }).code) : ''
+            if (code === 'auth/invalid-email') {
+              setValidationError('Please enter a valid email address.')
+              return
+            }
+            setSubmitError('Could not send reset email. Try again or use another method.')
+            return
+          }
+        }
+      }
+
       const res = await requestPasswordReset({ email: trimmed })
-      setDoneMessage(res.message ?? 'Check your email for reset instructions.')
+      setDoneMessage(res.message ?? GENERIC_DONE)
       setEmail('')
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong.')

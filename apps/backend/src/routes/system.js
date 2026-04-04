@@ -25,14 +25,20 @@ router.get("/providers", (req, res) => {
         configuredAdapter: dbAdapter,
         fallbackToMongoEnabled: Boolean(env.DB_FALLBACK_TO_MONGODB),
         mongoConfigured: hasCustomMongoUri,
+        /** Mongo connected or Firebase Admin + Firestore available (see configuredAdapter). */
         mongoConnected: isConnected(),
       },
       storage: {
         configuredProvider: storageProvider,
-        firebaseBucketConfigured: Boolean(env.FIREBASE_STORAGE_BUCKET),
+        firebaseBucketConfigured: Boolean(env.FIREBASE_STORAGE_BUCKET || process.env.GCLOUD_PROJECT),
         cloudinaryConfigured: Boolean(
           env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET
         ),
+        cloudinaryFallbackEnabled: Boolean(env.STORAGE_ALLOW_CLOUDINARY_FALLBACK),
+      },
+      firebaseAuth: {
+        syncOnSignup: Boolean(env.FIREBASE_AUTH_SYNC),
+        identityToolkitConfigured: Boolean(String(env.FIREBASE_WEB_API_KEY || "").trim()),
       },
     },
   });

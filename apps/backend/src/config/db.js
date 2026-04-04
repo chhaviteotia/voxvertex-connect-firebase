@@ -1,8 +1,15 @@
 const mongoose = require("mongoose");
 const { env } = require("./env");
+const { isFirebaseCloudRuntime } = require("./runtime");
 
 function connectDB() {
   const adapter = String(env.DB_ADAPTER || "mongodb").toLowerCase();
+
+  if (adapter === "firebase") {
+    console.log('DB adapter "firebase" — using Cloud Firestore via Firebase Admin SDK (no MongoDB connection).');
+    return Promise.resolve();
+  }
+
   const hasCustomMongoUri =
     typeof env.MONGO_URI === "string" &&
     env.MONGO_URI.trim() !== "" &&
@@ -37,11 +44,23 @@ function connectDB() {
     })
     .catch((err) => {
       console.error("MongoDB connection error:", err.message);
+      if (isFirebaseCloudRuntime()) {
+        throw err;
+      }
       process.exit(1);
     });
 }
 
 function isConnected() {
+  const adapter = String(env.DB_ADAPTER || "mongodb").toLowerCase();
+  if (adapter === "firebase") {
+    try {
+      const { getFirebaseAdmin } = require("./firebaseAdmin");
+      return Boolean(getFirebaseAdmin());
+    } catch (_e) {
+      return false;
+    }
+  }
   return mongoose.connection.readyState === 1;
 }
 
