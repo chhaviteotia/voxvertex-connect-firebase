@@ -1,8 +1,33 @@
+const Requirement = require("../models/Requirement");
 const {
   availabilityWindowRepository,
   scheduledSessionRepository,
 } = require("../repositories");
 const { USER_TYPES } = require("../config/constants");
+
+const OUTCOME_TITLES = {
+  "skill-development": "Skill Development",
+  "revenue-generation": "Revenue Generation",
+  "hiring-talent": "Hiring & Talent",
+  "brand-positioning": "Brand Positioning",
+  "leadership-alignment": "Leadership Alignment",
+  "innovation-problem-solving": "Innovation & Problem Solving",
+  "compliance-risk": "Compliance & Risk",
+  "community-networking": "Community & Networking",
+  "product-adoption": "Product Adoption",
+  "behavior-change": "Behavior Change",
+};
+
+function getRequirementTitleFromFormData(formData) {
+  const data = formData || {};
+  const outcome = data.selectedOutcome;
+  if (typeof outcome === "string" && OUTCOME_TITLES[outcome]) return OUTCOME_TITLES[outcome];
+  const objective = typeof data.objective === "string" ? data.objective.trim() : "";
+  if (objective) return objective;
+  const audience = Array.isArray(data.audienceSelected) ? data.audienceSelected : [];
+  if (audience.length > 0) return `${audience.slice(0, 2).join(", ")} engagement`;
+  return "Expert requirement";
+}
 
 function ensureExpert(req, res) {
   if (!req.user || req.user.type !== USER_TYPES.EXPERT) {
@@ -117,18 +142,35 @@ async function getSessions(req, res) {
       req.user.userId,
       { upcomingOnly: false }
     );
-    const items = sessions.map((s) => ({
-      id: s._id.toString(),
-      requirementId: s.requirementId ? s.requirementId.toString() : "",
-      companyName: s.companyName,
-      sessionType: s.sessionType || "",
-      status: s.status,
-      scheduledDate: s.scheduledDate,
-      startTime: s.startTime || "",
-      endTime: s.endTime || "",
-      location: s.location || "",
-      note: s.note || "",
-    }));
+    const reqIds = [
+      ...new Set(
+        sessions
+          .map((s) => s.requirementId)
+          .filter(Boolean)
+          .map((id) => String(id))
+      ),
+    ];
+    const reqDocs = reqIds.length > 0 ? await Requirement.find({ _id: { $in: reqIds } }).lean() : [];
+    const reqTitleById = new Map();
+    reqDocs.forEach((r) => {
+      reqTitleById.set(String(r._id), getRequirementTitleFromFormData(r.formData));
+    });
+    const items = sessions.map((s) => {
+      const rid = s.requirementId ? String(s.requirementId) : "";
+      return {
+        id: s._id.toString(),
+        requirementId: rid,
+        requirementTitle: rid ? reqTitleById.get(rid) || "Expert requirement" : "",
+        companyName: s.companyName,
+        sessionType: s.sessionType || "",
+        status: s.status,
+        scheduledDate: s.scheduledDate,
+        startTime: s.startTime || "",
+        endTime: s.endTime || "",
+        location: s.location || "",
+        note: s.note || "",
+      };
+    });
     return res.json({ success: true, data: items });
   } catch (err) {
     console.error("[expertCalendar.getSessions]", err);

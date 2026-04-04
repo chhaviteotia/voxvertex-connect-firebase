@@ -1,8 +1,10 @@
+const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { userRepository } = require("../repositories");
 const { env } = require("../config/env");
 const { USER_TYPES } = require("../config/constants");
+const { sendPasswordResetEmail } = require("../services/mail");
 
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 8;
@@ -57,6 +59,10 @@ function toPublicUser(user) {
   delete u.password;
   u.id = u._id?.toString?.() ?? u.id;
   return u;
+}
+
+function hashPasswordResetToken(rawToken) {
+  return crypto.createHash("sha256").update(rawToken, "utf8").digest("hex");
 }
 
 async function signup(req, res) {
@@ -138,4 +144,81 @@ async function signin(req, res) {
   }
 }
 
-module.exports = { signup, signin };
+async function forgotPassword(req, res) {
+  try {
+    const raw = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const email = raw.toLowerCase();
+    if (!email || email.length > MAX_EMAIL_LENGTH || !EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ success: false, error: "Please enter a valid email address." });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashPasswordResetToken(rawToken);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    const modified = await userRepository.setPasswordResetTokenByEmail(email, tokenHash, expiresAt);
+    if (modified > 0) {
+      const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${encodeURIComponent(rawToken)}`;
+      await sendPasswordResetEmail(email, resetUrl);
+    }
+
+    return res.json({
+      success: true,
+      message:
+        "If an account exists for that email, you will receive password reset instructions shortly.",
+    });
+  } catch (err) {
+    console.error("[authController.forgotPassword]", err);
+    return res.status(500).json({ success: false, error: "Could not process request. Please try again later." });
+  }
+}
+
+async function resetPassword(req, res) {
+  try {
+    const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+
+    if (!token) {
+      return res.status(400).json({ success: false, error: "Reset token is missing or invalid." });
+    }
+    if (!password) {
+      return res.status(400).json({ success: false, error: "Password is required." });
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res
+        .status(400)
+        .json({ success: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+    }
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      return res.status(400).json({ success: false, error: "Password is too long." });
+    }
+    if (!SPECIAL_CHAR_REGEX.test(password)) {
+      return res.status(400).json({
+        success: false,
+        error: "Password must include at least one special character (e.g. ! @ # $ %).",
+      });
+    }
+
+    const tokenHash = hashPasswordResetToken(token);
+    const ids = await userRepository.findUserIdsByPasswordResetToken(tokenHash);
+    if (!ids.length) {
+      return res.status(400).json({
+        success: false,
+        error: "This reset link is invalid or has expired. Please request a new one.",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    await userRepository.completePasswordResetForUserIds(ids, hashedPassword);
+
+    return res.json({
+      success: true,
+      message: "Your password has been reset. You can sign in now.",
+    });
+  } catch (err) {
+    console.error("[authController.resetPassword]", err);
+    return res.status(500).json({ success: false, error: "Could not reset password. Please try again." });
+  }
+}
+
+module.exports = { signup, signin, forgotPassword, resetPassword };

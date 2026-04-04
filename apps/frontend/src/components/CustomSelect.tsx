@@ -9,6 +9,8 @@ interface CustomSelectProps {
   className?: string
   /** Optional: hide native arrow (e.g. when using custom chevron) */
   showChevron?: boolean
+  /** Dark panel styling for marketing/auth pages (default: light) */
+  variant?: 'light' | 'dark'
 }
 
 export function CustomSelect({
@@ -19,7 +21,9 @@ export function CustomSelect({
   placeholder,
   className = '',
   showChevron = true,
+  variant = 'light',
 }: CustomSelectProps) {
+  const isDark = variant === 'dark'
   const [open, setOpen] = useState(false)
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const ref = useRef<HTMLDivElement>(null)
@@ -45,9 +49,11 @@ export function CustomSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={placeholder}
-        className={`w-full px-4 py-2.5 border border-gray-200 rounded-lg text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#008C9E] focus:border-transparent flex items-center justify-between gap-2 ${className} ${
-          isPlaceholder ? 'text-gray-400' : 'text-gray-800'
-        } bg-gray-50`}
+        className={`w-full px-4 py-2.5 rounded-lg text-left cursor-pointer focus:outline-none focus:ring-2 focus:border-transparent flex items-center justify-between gap-2 ${className} ${
+          isDark
+            ? `border border-white/15 bg-[#0D1018] focus:ring-[#FFB15A]/40 ${isPlaceholder ? 'text-white/45' : 'text-white'}`
+            : `border border-gray-200 focus:ring-[#008C9E] focus:border-transparent ${isPlaceholder ? 'text-gray-400' : 'text-gray-800'} bg-gray-50`
+        }`}
       >
         <span className="truncate">{displayValue}</span>
         {showChevron && (
@@ -60,7 +66,7 @@ export function CustomSelect({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={`shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`shrink-0 transition-transform ${isDark ? 'text-white/45' : 'text-gray-500'} ${open ? 'rotate-180' : ''}`}
           >
             <polyline points="6 9 12 15 18 9" />
           </svg>
@@ -69,7 +75,9 @@ export function CustomSelect({
       {open && (
         <ul
           role="listbox"
-          className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white py-1 shadow-lg max-h-60 overflow-auto"
+          className={`absolute z-50 mt-1 w-full rounded-lg py-1 shadow-lg max-h-60 overflow-auto ${
+            isDark ? 'border border-white/15 bg-[#1A2130]' : 'border border-gray-200 bg-white'
+          }`}
           onMouseLeave={() => setHoverIndex(null)}
         >
           <li
@@ -81,7 +89,13 @@ export function CustomSelect({
               setOpen(false)
             }}
             className={`cursor-pointer px-4 py-2.5 text-sm transition-colors ${
-              hoverIndex === -1 ? 'bg-[#2293b4] text-white' : 'bg-white text-gray-800'
+              isDark
+                ? hoverIndex === -1
+                  ? 'bg-[#FFB15A]/25 text-[#FFB15A]'
+                  : 'bg-transparent text-white/90'
+                : hoverIndex === -1
+                  ? 'bg-[#2293b4] text-white'
+                  : 'bg-white text-gray-800'
             }`}
           >
             {placeholder}
@@ -99,7 +113,15 @@ export function CustomSelect({
                   setOpen(false)
                 }}
                 className={`cursor-pointer px-4 py-2.5 text-sm transition-colors flex items-center justify-between gap-2 ${
-                  isSelected ? 'bg-[#2293B4] text-white' : hoverIndex === i ? 'bg-[#2293B4] text-white' : 'bg-white text-gray-800'
+                  isDark
+                    ? isSelected || hoverIndex === i
+                      ? 'bg-[#FFB15A] text-[#25160A]'
+                      : 'bg-transparent text-white/90'
+                    : isSelected
+                      ? 'bg-[#2293B4] text-white'
+                      : hoverIndex === i
+                        ? 'bg-[#2293B4] text-white'
+                        : 'bg-white text-gray-800'
                 }`}
               >
                 <span>{opt}</span>

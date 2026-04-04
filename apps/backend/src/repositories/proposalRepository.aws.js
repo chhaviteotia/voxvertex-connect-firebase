@@ -29,6 +29,20 @@ async function updateById(id, data) {
   throw new Error("Proposal repository: AWS adapter not implemented.");
 }
 
+async function getExpertAnalytics() {
+  return {
+    totalSubmitted: 0,
+    proposalsLast30: 0,
+    proposalsPrev30: 0,
+    byStatus: {},
+    monthlyRows: [],
+    industryRows: [],
+    avgMatchScore: null,
+    acceptanceWindowLast30: null,
+    acceptanceWindowPrev30: null,
+  };
+}
+
 module.exports = {
   create,
   listByRequirementId,
@@ -37,4 +51,5 @@ module.exports = {
   countByRequirementId,
   countBySubmittedBy,
   updateById,
+  getExpertAnalytics,
 };

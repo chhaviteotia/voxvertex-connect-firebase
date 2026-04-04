@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Logo } from '../components/Logo'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { signIn, clearError } from '../store/slices/authSlice'
+import { AuthMarketingShell } from '../components/auth/AuthMarketingShell'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -61,21 +61,22 @@ export function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4F7] font-sans text-gray-600 flex flex-col">
-      <main className="flex-1 flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md bg-white rounded-xl shadow-lg border border-gray-100 p-8">
-          <div className="flex flex-col items-center text-center mb-8">
-            <Logo to="/" variant="header" className="mb-6" />
-            <h1 className="text-2xl font-bold text-gray-800 tracking-tight mb-1">Welcome Back</h1>
-            <p className="text-sm text-gray-500">Log in to your account</p>
+    <AuthMarketingShell>
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#101623] p-8 shadow-[0_0_60px_rgba(0,0,0,0.35)]">
+          <div className="mb-8 flex flex-col items-center text-center">
+            <h1 className="mb-1 text-2xl font-semibold tracking-tight text-white">Welcome Back</h1>
+            <p className="text-sm text-white/55">Log in to your account</p>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             {(error || validationError) && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{validationError || error}</div>
+              <div className="rounded-lg border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">
+                {validationError || error}
+              </div>
             )}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-800 mb-1.5">
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-white/85">
                 Email
               </label>
               <input
@@ -86,15 +87,18 @@ export function SignInPage() {
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:border-transparent bg-white"
+                className="w-full rounded-lg border border-white/15 bg-[#0D1018] px-4 py-2.5 text-white placeholder-white/35 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#FFB15A]/50"
               />
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-800">
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-white/85">
                   Password
                 </label>
-                <Link to="/forgot-password" className="text-sm font-medium no-underline hover:underline" style={{ color: '#2293B4' }}>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-[#FF9B3D] no-underline hover:text-[#FFB15A]"
+                >
                   Forgot?
                 </Link>
               </div>
@@ -106,39 +110,43 @@ export function SignInPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:border-transparent bg-white"
+                className="w-full rounded-lg border border-white/15 bg-[#0D1018] px-4 py-2.5 text-white placeholder-white/35 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#FFB15A]/50"
               />
             </div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-lg text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-[#2293B4] focus:ring-offset-2 transition-opacity hover:opacity-90 disabled:opacity-70"
-              style={{ backgroundColor: '#2293B4' }}
+              className="w-full rounded-lg bg-[#FFB15A] px-4 py-3 text-base font-semibold text-[#25160A] transition-[filter,opacity] hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[#FFB15A]/60 focus:ring-offset-2 focus:ring-offset-[#101623] disabled:opacity-70"
             >
               {isLoading ? 'Signing in…' : 'Log In'}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-[15px] text-gray-600">
+          <p className="mt-6 text-center text-[15px] text-white/60">
             Don&apos;t have an account?{' '}
-            <Link to="/signup" className="font-medium no-underline hover:underline" style={{ color: '#2293B4' }}>
+            <Link to="/signup" className="font-medium text-[#FF9B3D] no-underline hover:text-[#FFB15A]">
               Sign up
             </Link>
           </p>
 
-          <div className="border-t border-gray-200 mt-6 pt-6">
-            <Link to="/" className="inline-flex items-center gap-1.5 text-gray-600 text-sm no-underline hover:text-gray-800">
+          <div className="mt-6 border-t border-white/10 pt-6">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-sm text-white/55 no-underline hover:text-white"
+            >
               <span aria-hidden>←</span> Back to home
             </Link>
           </div>
         </div>
       </main>
 
-      <footer className="py-4 px-6">
-        <p className="text-sm text-gray-400">
-          <Link to="/privacy" className="text-gray-400 no-underline hover:text-gray-600">Manage cookies or opt out</Link>
+      <footer className="px-6 py-4">
+        <p className="text-sm text-white/35">
+          <Link to="/privacy" className="text-white/45 no-underline hover:text-white/70">
+            Manage cookies or opt out
+          </Link>
         </p>
       </footer>
-    </div>
+    </AuthMarketingShell>
   )
 }

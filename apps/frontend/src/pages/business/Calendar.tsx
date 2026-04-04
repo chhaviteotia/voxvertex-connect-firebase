@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarBottomItems, businessSidebarItems } from '../../config/businessNav'
 import { IconCalendar, IconClock, IconMapPin, IconVideo } from '../../components/layout/DashboardIcons'
@@ -69,7 +69,6 @@ function IconChevronDownSmall() {
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const scheduledDateKeys = new Set(['2026-03-08', '2026-03-15', '2026-03-20'])
 const TIME_HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'))
 const TIME_MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
 const TIME_MERIDIEM = ['PM', 'AM']
@@ -99,6 +98,13 @@ function pad2(n: number) {
 
 function toDateKey(year: number, month: number, day: number) {
   return `${year}-${pad2(month)}-${pad2(day)}`
+}
+
+/** Local calendar date key from an API ISO date string */
+function sessionToDateKey(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return toDateKey(d.getFullYear(), d.getMonth() + 1, d.getDate())
 }
 
 function parseDateKey(dateKey: string): Date {
@@ -171,6 +177,7 @@ export function BusinessCalendar() {
   const [scheduleError, setScheduleError] = useState<string | null>(null)
   const [requirementOptionsWithId, setRequirementOptionsWithId] = useState<Array<{ id: string; title: string }>>([])
   const [dynamicSessions, setDynamicSessions] = useState<BusinessScheduledSession[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(true)
   const startTimeRef = useRef<HTMLDivElement | null>(null)
   const endTimeRef = useRef<HTMLDivElement | null>(null)
   const requirementRef = useRef<HTMLDivElement | null>(null)
@@ -236,13 +243,19 @@ export function BusinessCalendar() {
 
   useEffect(() => {
     let cancelled = false
+    setSessionsLoading(true)
     getBusinessScheduledSessions()
       .then((res) => {
         if (!cancelled && res.success && Array.isArray(res.data)) {
           setDynamicSessions(res.data)
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setDynamicSessions([])
+      })
+      .finally(() => {
+        if (!cancelled) setSessionsLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -269,8 +282,41 @@ export function BusinessCalendar() {
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown)
   }, [isScheduleModalOpen, isRequirementOpen, openTimePicker])
 
-  const upcomingDynamicSessions = dynamicSessions.filter((s) => new Date(s.scheduledDate) >= todayStart)
-  const pastDynamicSessions = dynamicSessions.filter((s) => new Date(s.scheduledDate) < todayStart)
+  const scheduledDateKeysSet = useMemo(() => {
+    const set = new Set<string>()
+    dynamicSessions.forEach((s) => {
+      const k = sessionToDateKey(s.scheduledDate)
+      if (k) set.add(k)
+    })
+    return set
+  }, [dynamicSessions])
+
+  const upcomingDynamicSessions = useMemo(
+    () =>
+      [...dynamicSessions.filter((s) => new Date(s.scheduledDate) >= todayStart)].sort(
+        (a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime()
+      ),
+    [dynamicSessions, todayStart]
+  )
+  const pastDynamicSessions = useMemo(
+    () =>
+      [...dynamicSessions.filter((s) => new Date(s.scheduledDate) < todayStart)].sort(
+        (a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime()
+      ),
+    [dynamicSessions, todayStart]
+  )
+
+  const sessionOverview = useMemo(() => {
+    const upcoming = upcomingDynamicSessions
+    const past = dynamicSessions.filter((s) => new Date(s.scheduledDate) < todayStart)
+    return {
+      upcomingTotal: upcoming.length,
+      confirmed: upcoming.filter((s) => s.status === 'confirmed').length,
+      pending: upcoming.filter((s) => s.status === 'pending').length,
+      completed: past.length,
+      nextSession: upcoming[0],
+    }
+  }, [dynamicSessions, upcomingDynamicSessions, todayStart])
 
   return (
     <DashboardLayout
@@ -357,7 +403,7 @@ export function BusinessCalendar() {
             <div className="mt-1 grid grid-cols-7 gap-y-2">
               {calendarCells.map((cell) => {
                 const isCurrent = cell.isCurrentMonth
-                const isScheduled = isCurrent && scheduledDateKeys.has(cell.dateKey)
+                const isScheduled = isCurrent && scheduledDateKeysSet.has(cell.dateKey)
                 const isSelected = isCurrent && selectedDateKey === cell.dateKey
                 const cellDate = parseDateKey(cell.dateKey)
                 const isPastDate = isCurrent && cellDate < todayStart
@@ -423,159 +469,159 @@ export function BusinessCalendar() {
             <h3 className="text-2xl font-semibold text-[#0B1B3D]">Session Overview</h3>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-[#D7DEE8] bg-[#F5FAFE] p-4">
-                <p className="text-3xl font-bold text-[#0EA5C4]">3</p>
+                <p className="text-3xl font-bold text-[#0EA5C4]">
+                  {sessionsLoading ? '—' : sessionOverview.upcomingTotal}
+                </p>
                 <p className="mt-1 text-sm text-gray-500">Upcoming Sessions</p>
               </div>
               <div className="rounded-xl border border-[#D7EBD9] bg-[#F3FBF6] p-4">
-                <p className="text-3xl font-bold text-[#1E8D51]">1</p>
+                <p className="text-3xl font-bold text-[#1E8D51]">
+                  {sessionsLoading ? '—' : sessionOverview.confirmed}
+                </p>
                 <p className="mt-1 text-sm text-gray-500">Confirmed</p>
               </div>
               <div className="rounded-xl border border-[#EEE2CF] bg-[#FFF8EE] p-4">
-                <p className="text-3xl font-bold text-[#C87400]">1</p>
+                <p className="text-3xl font-bold text-[#C87400]">
+                  {sessionsLoading ? '—' : sessionOverview.pending}
+                </p>
                 <p className="mt-1 text-sm text-gray-500">Pending</p>
               </div>
               <div className="rounded-xl border border-[#D7DEE8] bg-[#FAFBFD] p-4">
-                <p className="text-3xl font-bold text-[#4B5563]">1</p>
+                <p className="text-3xl font-bold text-[#4B5563]">
+                  {sessionsLoading ? '—' : sessionOverview.completed}
+                </p>
                 <p className="mt-1 text-sm text-gray-500">Completed</p>
               </div>
             </div>
 
             <div className="mt-4 rounded-xl border border-[#BFE8EF] bg-[#F3FCFF] p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#1590A8]">Next Session</p>
-              <p className="mt-2 text-xl font-semibold text-[#0B1B3D]">Leadership Training for Managers</p>
-              <p className="mt-1 text-sm text-gray-500">with Dr. Sarah Johnson</p>
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                <span className="inline-flex items-center gap-1.5"><IconCalendar className="h-4 w-4" /> Mar 15, 2026</span>
-                <span>•</span>
-                <span className="inline-flex items-center gap-1.5"><IconClock className="h-4 w-4" /> 10:00 AM - 2:00 PM</span>
-              </div>
+              {sessionsLoading ? (
+                <p className="mt-2 text-sm text-gray-500">Loading…</p>
+              ) : sessionOverview.nextSession ? (
+                <>
+                  <p className="mt-2 text-xl font-semibold text-[#0B1B3D]">{sessionOverview.nextSession.requirementTitle}</p>
+                  <p className="mt-1 text-sm text-gray-500">with {sessionOverview.nextSession.expertName || 'Expert'}</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                    <span className="inline-flex items-center gap-1.5">
+                      <IconCalendar className="h-4 w-4" />{' '}
+                      {new Date(sessionOverview.nextSession.scheduledDate).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <IconClock className="h-4 w-4" />{' '}
+                      {[sessionOverview.nextSession.startTime, sessionOverview.nextSession.endTime].filter(Boolean).join(' – ') ||
+                        'Time TBD'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-gray-500">No upcoming sessions scheduled.</p>
+              )}
             </div>
           </div>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h3 className="text-2xl font-semibold text-[#0B1B3D]">Scheduled Sessions</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Sessions tied to your requirements ({sessionsLoading ? '…' : dynamicSessions.length} total)
+          </p>
 
-          {(upcomingDynamicSessions.length > 0 || pastDynamicSessions.length > 0) && (
-            <div className="mt-5">
-              <p className="text-sm font-semibold text-gray-500">
-                Scheduled from accepted experts ({dynamicSessions.length})
-              </p>
-              <div className="mt-3 space-y-3">
-                {upcomingDynamicSessions.map((s) => (
-                  <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-xl font-semibold text-[#0B1B3D]">{s.requirementTitle}</h4>
-                      <span className="rounded-md bg-[#E8F8EE] px-2 py-0.5 text-xs font-semibold text-[#1E8D51]">
-                        {s.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">{s.companyName} • {s.sessionType || 'Session'}</p>
-                    <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-600 md:grid-cols-3">
-                      <span className="inline-flex items-center gap-1.5">
-                        <IconCalendar className="h-4 w-4" /> {new Date(s.scheduledDate).toLocaleDateString()}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <IconClock className="h-4 w-4" /> {[s.startTime, s.endTime].filter(Boolean).join(' - ') || '—'}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        {s.location?.toLowerCase().includes('http') || s.location?.toLowerCase().includes('zoom') ? (
-                          <IconVideo className="h-4 w-4" />
-                        ) : (
-                          <IconMapPin className="h-4 w-4" />
-                        )}{' '}
-                        {s.location || '—'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {pastDynamicSessions.map((s) => (
-                  <div key={`past-${s.id}`} className="rounded-xl border border-gray-200 bg-[#FAFBFD] p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-xl font-semibold text-[#0B1B3D]">{s.requirementTitle}</h4>
-                      <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
-                        Completed
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">{s.companyName} • {s.sessionType || 'Session'}</p>
-                    <p className="mt-1 text-xs text-gray-400">
-                      {new Date(s.scheduledDate).toLocaleDateString()} {s.startTime ? `• ${s.startTime}` : ''}
-                    </p>
-                  </div>
-                ))}
+          {sessionsLoading ? (
+            <p className="mt-6 text-sm text-gray-500">Loading sessions…</p>
+          ) : dynamicSessions.length === 0 ? (
+            <p className="mt-6 text-sm text-gray-500">
+              No sessions yet. Schedule one from the calendar (future dates) after you have accepted experts on a requirement.
+            </p>
+          ) : (
+            <>
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-gray-500">
+                  Upcoming ({upcomingDynamicSessions.length})
+                </p>
+                <div className="mt-3 space-y-3">
+                  {upcomingDynamicSessions.map((s) => {
+                    const loc = s.location || ''
+                    const isLink =
+                      /^https?:\/\//i.test(loc) || loc.toLowerCase().includes('zoom') || loc.toLowerCase().includes('meet.')
+                    return (
+                      <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-xl font-semibold text-[#0B1B3D]">{s.requirementTitle}</h4>
+                          <span
+                            className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                              s.status === 'confirmed'
+                                ? 'bg-[#E8F8EE] text-[#1E8D51]'
+                                : 'bg-[#FFF4D7] text-[#A56A00]'
+                            }`}
+                          >
+                            {s.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {s.expertName || 'Expert'} • {s.sessionType || 'Session'}
+                        </p>
+                        <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-600 md:grid-cols-3">
+                          <span className="inline-flex items-center gap-1.5">
+                            <IconCalendar className="h-4 w-4" /> {new Date(s.scheduledDate).toLocaleDateString()}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <IconClock className="h-4 w-4" /> {[s.startTime, s.endTime].filter(Boolean).join(' – ') || '—'}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            {isLink ? <IconVideo className="h-4 w-4" /> : <IconMapPin className="h-4 w-4" />}
+                            {loc || '—'}
+                          </span>
+                        </div>
+                        {isLink && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <a
+                              href={loc.startsWith('http') ? loc : `https://${loc}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg bg-[#0EA5C4] px-4 py-2 text-sm font-semibold text-white no-underline inline-flex items-center justify-center"
+                            >
+                              Open meeting link
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+
+              {pastDynamicSessions.length > 0 && (
+                <div className="mt-6">
+                  <p className="text-sm font-semibold text-gray-500">Past ({pastDynamicSessions.length})</p>
+                  <div className="mt-3 space-y-3">
+                    {pastDynamicSessions.map((s) => (
+                      <div key={`past-${s.id}`} className="rounded-xl border border-gray-200 bg-[#FAFBFD] p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-xl font-semibold text-[#0B1B3D]">{s.requirementTitle}</h4>
+                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                            Completed
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {s.expertName || 'Expert'} • {s.sessionType || 'Session'}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-400">
+                          {new Date(s.scheduledDate).toLocaleDateString()}
+                          {s.startTime ? ` • ${s.startTime}` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-
-          <div className="mt-5">
-            <p className="text-sm font-semibold text-gray-500">Upcoming &amp; Pending (3)</p>
-            <div className="mt-3 space-y-3">
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-xl font-semibold text-[#0B1B3D]">Leadership Training for Managers</h4>
-                  <span className="rounded-md bg-[#E8F8EE] px-2 py-0.5 text-xs font-semibold text-[#1E8D51]">confirmed</span>
-                </div>
-                <p className="mt-1 text-sm text-gray-500">Dr. Sarah Johnson • Workshop (Single Day)</p>
-                <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-600 md:grid-cols-3">
-                  <span className="inline-flex items-center gap-1.5"><IconCalendar className="h-4 w-4" /> Mar 15, 2026</span>
-                  <span className="inline-flex items-center gap-1.5"><IconClock className="h-4 w-4" /> 10:00 AM - 2:00 PM</span>
-                  <span className="inline-flex items-center gap-1.5"><IconVideo className="h-4 w-4" /> Online - Zoom</span>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button className="rounded-lg bg-[#0EA5C4] px-4 py-2 text-sm font-semibold text-white">Join Meeting</button>
-                  <button className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">View Details</button>
-                  <button className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">Add to Calendar</button>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-xl font-semibold text-[#0B1B3D]">Product Strategy Review</h4>
-                  <span className="rounded-md bg-[#FFF4D7] px-2 py-0.5 text-xs font-semibold text-[#A56A00]">pending</span>
-                </div>
-                <p className="mt-1 text-sm text-gray-500">Rajesh Kumar • Advisory Session</p>
-                <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-600 md:grid-cols-3">
-                  <span className="inline-flex items-center gap-1.5"><IconCalendar className="h-4 w-4" /> Mar 20, 2026</span>
-                  <span className="inline-flex items-center gap-1.5"><IconClock className="h-4 w-4" /> 2:00 PM - 4:00 PM</span>
-                  <span className="inline-flex items-center gap-1.5"><IconMapPin className="h-4 w-4" /> Bangalore, India</span>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button className="rounded-lg bg-[#0EA5C4] px-4 py-2 text-sm font-semibold text-white">Confirm Details</button>
-                  <button className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">Message Expert</button>
-                  <button className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">Request Changes</button>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-xl font-semibold text-[#0B1B3D]">Executive Coaching Program</h4>
-                  <span className="rounded-md bg-[#E8F0FF] px-2 py-0.5 text-xs font-semibold text-[#2C60C6]">Awaiting Response</span>
-                </div>
-                <p className="mt-1 text-sm text-gray-500">Priya Sharma • Coaching (1-on-1)</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button className="rounded-lg bg-[#0EA5C4] px-4 py-2 text-sm font-semibold text-white">Review Proposal</button>
-                  <button className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">View Expert Profile</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <p className="text-sm font-semibold text-gray-500">Past Sessions (1)</p>
-            <div className="mt-3 rounded-xl border border-gray-200 bg-[#FAFBFD] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-xl font-semibold text-[#0B1B3D]">Innovation Workshop</h4>
-                    <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">Completed</span>
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500">with Michael Chen</p>
-                  <p className="mt-1 text-xs text-gray-400">Keynote Session • Mar 8, 2026</p>
-                </div>
-                <button className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">View Feedback</button>
-              </div>
-            </div>
-          </div>
         </section>
       </div>
       {isScheduleModalOpen && (

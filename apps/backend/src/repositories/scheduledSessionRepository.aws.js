@@ -19,6 +19,15 @@ async function countByStatus() {
 async function listByRequirementIds() {
   return [];
 }
+
+async function countCompletedByExpert() {
+  return 0;
+}
+
+async function countCompletedByExpertInRange() {
+  return 0;
+}
+
 module.exports = {
   listByExpert,
   create,
@@ -27,4 +36,6 @@ module.exports = {
   countUpcomingByExpert,
   countByStatus,
   listByRequirementIds,
+  countCompletedByExpert,
+  countCompletedByExpertInRange,
 };

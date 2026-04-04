@@ -18,9 +18,24 @@ async function findById(id) {
   throw new Error("userRepository.aws.js not implemented.");
 }
 
+async function setPasswordResetTokenByEmail() {
+  throw new Error("userRepository.aws.js not implemented.");
+}
+
+async function findUserIdsByPasswordResetToken() {
+  throw new Error("userRepository.aws.js not implemented.");
+}
+
+async function completePasswordResetForUserIds() {
+  throw new Error("userRepository.aws.js not implemented.");
+}
+
 module.exports = {
   createUser,
   findByEmailAndType,
   findByEmailForAuth,
   findById,
+  setPasswordResetTokenByEmail,
+  findUserIdsByPasswordResetToken,
+  completePasswordResetForUserIds,
 };

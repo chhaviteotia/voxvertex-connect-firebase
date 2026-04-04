@@ -4,49 +4,32 @@ import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
-import { IconEye, IconCheckSquare, IconTrendingUp, IconChart, IconTarget, IconUsers, IconCalendar, IconDollar } from '../../components/layout/DashboardIcons'
+import { IconCheckSquare, IconDocument, IconTarget, IconUsers, IconCalendar, IconDollar } from '../../components/layout/DashboardIcons'
 import { getExpertProfile, type ExpertProfileData } from '../../api/expertProfile'
 import { computeExpertProfileCompletion, EXPERT_SECTION_LABELS } from '../../utils/expertProfileCompletion'
+import { getOpportunities, type OpportunityItem } from '../../api/expertOpportunities'
+import { listMyProposals, type ProposalResponse } from '../../api/proposals'
+import { formatOpportunityTimeAgo, getTitleFromOpportunityFormData, mapOpportunityItemToCard } from '../../utils/opportunityDisplay'
 
 const TEAL = '#008C9E'
 
-const STAT_CARDS = [
-  { value: '42', label: 'Profile Views', change: '+12%', changePositive: true, icon: IconUsers },
-  { value: '85%', label: 'Acceptance Rate', change: '+5%', changePositive: true, icon: IconCheckSquare },
-  { value: '2.4h', label: 'Avg. Response Time', change: '-15%', changePositive: false, icon: IconTrendingUp },
-  { value: '7.8/10', label: 'Ranking Score', change: '+0.3', changePositive: true, icon: IconTarget },
-]
-
-const MATCHED_OPPORTUNITIES = [
-  {
-    id: '1',
-    title: 'AI Training for Sales Team',
-    company: 'TechCorp India',
-    match: 92,
-    timeAgo: '1d ago',
-    objective: 'Skill Development',
-    audience: 'Sales Teams',
-    type: 'Workshop',
-    budget: '₹1,50,000 - ₹2,50,000',
-  },
-  {
-    id: '2',
-    title: 'Leadership Development Program',
-    company: 'Manufacturing Ltd',
-    match: 88,
-    timeAgo: '2d ago',
-    objective: 'Leadership Development',
-    audience: 'Middle Management',
-    type: 'Training Series',
-    budget: '₹2,00,000 - ₹3,50,000',
-  },
-]
-
-const RECENT_ACTIVITY = [
-  { text: "Your proposal for 'AI Training for Sales Team' is under review", time: '2 hours ago' },
-  { text: "New opportunity matched: 'Leadership Development Program'", time: '1 day ago' },
-  { text: 'Your profile was viewed by TechCorp India', time: '2 days ago' },
-]
+function proposalActivityText(p: ProposalResponse): string {
+  const title = getTitleFromOpportunityFormData((p.requirement?.formData ?? {}) as Record<string, unknown>)
+  switch (p.status) {
+    case 'accepted':
+      return `Proposal accepted for “${title}”`
+    case 'declined':
+      return `Proposal declined for “${title}”`
+    case 'modification-requested':
+      return `Revision requested for “${title}”`
+    case 'submitted':
+      return `Proposal submitted for “${title}”`
+    case 'draft':
+      return `Draft proposal for “${title}”`
+    default:
+      return `Proposal updated for “${title}”`
+  }
+}
 
 export function ExpertDashboard() {
   const user = useAppSelector(selectUser) as { name?: string; email?: string } | null
@@ -54,6 +37,12 @@ export function ExpertDashboard() {
   const displayName = user?.name || (prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase() + ' Doe')
   const firstName = displayName.split(/\s+/)[0] || 'John'
   const [profileData, setProfileData] = useState<ExpertProfileData | undefined>(undefined)
+  const [proposals, setProposals] = useState<ProposalResponse[]>([])
+  const [proposalsLoading, setProposalsLoading] = useState(true)
+  const [opportunityItems, setOpportunityItems] = useState<OpportunityItem[]>([])
+  const [opportunitiesTotal, setOpportunitiesTotal] = useState(0)
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(true)
+  const [opportunitiesError, setOpportunitiesError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -71,8 +60,110 @@ export function ExpertDashboard() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    setProposalsLoading(true)
+    listMyProposals({ limit: 80, skip: 0 })
+      .then((res) => {
+        if (!cancelled && res.success) setProposals(res.proposals ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setProposals([])
+      })
+      .finally(() => {
+        if (!cancelled) setProposalsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    setOpportunitiesLoading(true)
+    setOpportunitiesError(null)
+    getOpportunities({ limit: 5, skip: 0 })
+      .then((res) => {
+        if (cancelled) return
+        if (res.success) {
+          setOpportunityItems(res.data ?? [])
+          setOpportunitiesTotal(typeof res.total === 'number' ? res.total : (res.data ?? []).length)
+        } else {
+          setOpportunityItems([])
+          setOpportunitiesTotal(0)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setOpportunitiesError(err instanceof Error ? err.message : 'Failed to load opportunities')
+          setOpportunityItems([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setOpportunitiesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const completion = useMemo(() => computeExpertProfileCompletion(profileData), [profileData])
   const missingLabels = completion.missingSections.map((section) => EXPERT_SECTION_LABELS[section])
+
+  const acceptedCount = useMemo(() => proposals.filter((p) => p.status === 'accepted').length, [proposals])
+  const inReviewCount = useMemo(
+    () => proposals.filter((p) => p.status === 'submitted' || p.status === 'modification-requested').length,
+    [proposals]
+  )
+  const draftProposalsCount = useMemo(() => proposals.filter((p) => p.status === 'draft').length, [proposals])
+  const sentProposalsCount = useMemo(() => proposals.filter((p) => p.status !== 'draft').length, [proposals])
+
+  const statCards = useMemo(
+    () => [
+      {
+        value: String(opportunitiesTotal),
+        label: 'Open opportunities',
+        secondary: 'Published requirements',
+        icon: IconTarget,
+      },
+      {
+        value: String(sentProposalsCount),
+        label: 'Proposals sent',
+        secondary: `${acceptedCount} accepted`,
+        icon: IconUsers,
+      },
+      {
+        value: String(inReviewCount),
+        label: 'In review',
+        secondary: 'Awaiting business',
+        icon: IconCheckSquare,
+      },
+      {
+        value: String(draftProposalsCount),
+        label: 'Draft proposals',
+        secondary: 'Not yet submitted',
+        icon: IconDocument,
+      },
+    ],
+    [opportunitiesTotal, sentProposalsCount, acceptedCount, inReviewCount, draftProposalsCount]
+  )
+
+  const recentActivityItems = useMemo(() => {
+    return [...proposals]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10)
+      .map((p) => ({
+        text: proposalActivityText(p),
+        time: formatOpportunityTimeAgo(p.createdAt),
+      }))
+  }, [proposals])
+
+  const matchedOpportunityCards = useMemo(() => {
+    const matchBasis = completion.percent > 0 ? completion.percent : 72
+    return opportunityItems.map((item) => mapOpportunityItemToCard(item, { matchPercent: matchBasis }))
+  }, [opportunityItems, completion.percent])
+
+  const statsPending = proposalsLoading || opportunitiesLoading
 
   return (
     <DashboardLayout
@@ -136,15 +227,17 @@ export function ExpertDashboard() {
 
         {/* Four stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {STAT_CARDS.map(({ value, label, change, changePositive, icon: Icon }) => (
+          {statCards.map(({ value, label, secondary, icon: Icon }) => (
             <div key={label} className="bg-white rounded-lg border border-gray-200 px-4 py-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start justify-between gap-2">
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-gray-600 bg-gray-100">
                   <Icon />
                 </div>
-                <span className={`text-sm font-medium ${changePositive ? 'text-green-600' : 'text-red-600'}`}>{change}</span>
+                {secondary ? (
+                  <span className="text-xs text-gray-500 text-right leading-tight max-w-[120px]">{secondary}</span>
+                ) : null}
               </div>
-              <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-2">{statsPending ? '—' : value}</p>
               <p className="text-sm text-gray-500 mt-0.5">{label}</p>
             </div>
           ))}
@@ -163,54 +256,63 @@ export function ExpertDashboard() {
               </Link>
             </div>
             <div className="space-y-4">
-              {MATCHED_OPPORTUNITIES.map((opp) => (
-                <div key={opp.id} className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
-                    <h3 className="text-base font-semibold text-gray-900">{opp.title}</h3>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="inline-flex rounded-md px-2.5 py-1 text-xs font-semibold text-white" style={{ backgroundColor: TEAL }}>
-                        {opp.match}% Match
-                      </span>
-                      <span className="text-xs text-gray-400">{opp.timeAgo}</span>
+              {opportunitiesError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{opportunitiesError}</div>
+              )}
+              {opportunitiesLoading ? (
+                <p className="text-sm text-gray-500 py-6">Loading opportunities…</p>
+              ) : matchedOpportunityCards.length === 0 ? (
+                <p className="text-sm text-gray-500 py-6">No open opportunities right now. Check back soon or open Browse to see the full list.</p>
+              ) : (
+                matchedOpportunityCards.map((opp) => (
+                  <div key={opp.id} className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <h3 className="text-base font-semibold text-gray-900">{opp.title}</h3>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="inline-flex rounded-md px-2.5 py-1 text-xs font-semibold text-white" style={{ backgroundColor: TEAL }}>
+                          {opp.match > 0 ? `${opp.match}% profile fit` : 'Match'}
+                        </span>
+                        <span className="text-xs text-gray-400">{opp.timeAgo}</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">{opp.company}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-600 mb-4">
+                      <div className="flex items-center gap-1.5">
+                        <IconTarget className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span>{opp.objective}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <IconUsers className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span>{opp.audience}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <IconCalendar className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span>{opp.type}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <IconDollar className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span>{opp.budget}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        to={`/expert/browse/${opp.id}`}
+                        state={{ title: opp.title, company: opp.company }}
+                        className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 no-underline"
+                        style={{ backgroundColor: TEAL }}
+                      >
+                        View Details
+                      </Link>
+                      <Link
+                        to={`/expert/browse/${opp.id}/propose`}
+                        className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 no-underline"
+                      >
+                        Submit Proposal
+                      </Link>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-4">{opp.company}</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-600 mb-4">
-                    <div className="flex items-center gap-1.5">
-                      <IconTarget className="w-4 h-4 text-gray-400 shrink-0" />
-                      <span>{opp.objective}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <IconUsers className="w-4 h-4 text-gray-400 shrink-0" />
-                      <span>{opp.audience}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <IconCalendar className="w-4 h-4 text-gray-400 shrink-0" />
-                      <span>{opp.type}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <IconDollar className="w-4 h-4 text-gray-400 shrink-0" />
-                      <span>{opp.budget}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      to={`/expert/browse/${opp.id}`}
-                      state={{ title: opp.title, company: opp.company }}
-                      className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 no-underline"
-                      style={{ backgroundColor: TEAL }}
-                    >
-                      View Details
-                    </Link>
-                    <Link
-                      to={`/expert/browse/${opp.id}/propose`}
-                      className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 no-underline"
-                    >
-                      Submit Proposal
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -219,12 +321,18 @@ export function ExpertDashboard() {
             <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
               <div className="divide-y divide-gray-200">
-                {RECENT_ACTIVITY.map((item, i) => (
-                  <div key={i} className="px-4 py-3">
-                    <p className="text-sm text-gray-900">{item.text}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{item.time}</p>
-                  </div>
-                ))}
+                {proposalsLoading ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">Loading activity…</div>
+                ) : recentActivityItems.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">No proposal activity yet. Submit a proposal to see updates here.</div>
+                ) : (
+                  recentActivityItems.map((item, i) => (
+                    <div key={`${item.text}-${i}`} className="px-4 py-3">
+                      <p className="text-sm text-gray-900">{item.text}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{item.time}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Logo } from '../../components/Logo'
 import { CustomSelect } from '../../components/CustomSelect'
+import { AuthMarketingShell } from '../../components/auth/AuthMarketingShell'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { signUp } from '../../store/slices/authSlice'
 
@@ -30,8 +30,8 @@ const FEE_MIN = 10_000
 const FEE_MAX = 500_000
 const FEE_STEP = 5000
 
-const STEP3_TEAL = '#2391B1'
-const STEP3_SLIDER_FILL = '#313238'
+const STEP3_ACCENT = '#FFB15A'
+const STEP3_SLIDER_FILL = '#FFB15A'
 
 const SERVICE_OFFERINGS = [
   { id: 'speaker', title: 'Speaker', description: 'Keynotes & presentations', Icon: IconMicrophone },
@@ -40,9 +40,9 @@ const SERVICE_OFFERINGS = [
   { id: 'mentor', title: 'Mentor', description: 'Long-term mentorship', Icon: IconHeart },
 ] as const
 
-const TEAL = '#008C9E'
+const ACCENT = '#FFB15A'
 
-function IconMicrophone({ className = 'w-6 h-6', stroke = TEAL }: { className?: string; stroke?: string }) {
+function IconMicrophone({ className = 'w-6 h-6', stroke = ACCENT }: { className?: string; stroke?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
@@ -51,7 +51,7 @@ function IconMicrophone({ className = 'w-6 h-6', stroke = TEAL }: { className?: 
     </svg>
   )
 }
-function IconGraduationCap({ className = 'w-6 h-6', stroke = TEAL }: { className?: string; stroke?: string }) {
+function IconGraduationCap({ className = 'w-6 h-6', stroke = ACCENT }: { className?: string; stroke?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 10v6M2 10l10 5 10-5-10-5z" />
@@ -59,7 +59,7 @@ function IconGraduationCap({ className = 'w-6 h-6', stroke = TEAL }: { className
     </svg>
   )
 }
-function IconPeople({ className = 'w-6 h-6', stroke = TEAL }: { className?: string; stroke?: string }) {
+function IconPeople({ className = 'w-6 h-6', stroke = ACCENT }: { className?: string; stroke?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="9" cy="7" r="4" />
@@ -69,7 +69,7 @@ function IconPeople({ className = 'w-6 h-6', stroke = TEAL }: { className?: stri
     </svg>
   )
 }
-function IconHeart({ className = 'w-6 h-6', stroke = TEAL }: { className?: string; stroke?: string }) {
+function IconHeart({ className = 'w-6 h-6', stroke = ACCENT }: { className?: string; stroke?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -79,7 +79,7 @@ function IconHeart({ className = 'w-6 h-6', stroke = TEAL }: { className?: strin
 
 function CheckmarkCircle() {
   return (
-    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#008C9E] flex items-center justify-center" aria-hidden>
+    <span className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#FFB15A]" aria-hidden>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
       </svg>
@@ -87,8 +87,9 @@ function CheckmarkCircle() {
   )
 }
 
-const inputClass = 'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#008C9E] focus:border-transparent bg-gray-50'
-const labelClass = 'block text-sm font-medium text-gray-800 mb-1.5'
+const inputClass =
+  'w-full rounded-lg border border-white/15 bg-[#0D1018] px-4 py-2.5 text-white placeholder-white/35 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#FFB15A]/50'
+const labelClass = 'mb-1.5 block text-sm font-medium text-white/85'
 
 export function ExpertSignupPage() {
   const location = useLocation()
@@ -168,51 +169,54 @@ export function ExpertSignupPage() {
   if (status === 'success') {
     const profileStrength = 20
     return (
-      <div className="min-h-screen bg-[#f7f9fc] font-sans flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md bg-white rounded-xl shadow-lg border border-gray-100 p-8 text-center">
-          <div className="flex flex-col items-center">
-            <div className="w-16 h-16 rounded-full border-2 border-[#2ea6b6] bg-white flex items-center justify-center mb-6">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2ea6b6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-[#202c44] mb-6">Welcome to Voxvertex!</h1>
-            <div className="w-full flex items-center gap-3 mb-6">
-              <span className="text-sm font-medium text-[#202c44] shrink-0">Profile Strength</span>
-              <div className="flex-1 h-2 bg-[#e0e0e0] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#202c44] rounded-full transition-all duration-500"
-                  style={{ width: `${profileStrength}%` }}
-                  aria-hidden
-                />
+      <AuthMarketingShell>
+        <main className="flex flex-1 items-center justify-center px-6 py-12">
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#101623] p-8 text-center shadow-[0_0_60px_rgba(0,0,0,0.35)]">
+            <div className="flex flex-col items-center">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#FFB15A]/50 bg-[#FFB15A]/10">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFB15A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
               </div>
-              <span className="text-sm font-semibold text-[#2ea6b6] shrink-0">{profileStrength}%</span>
+              <h1 className="mb-6 text-2xl font-semibold text-white">Welcome to Voxvertex!</h1>
+              <div className="mb-6 flex w-full items-center gap-3">
+                <span className="shrink-0 text-sm font-medium text-white/85">Profile Strength</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-[#FFB15A] transition-all duration-500"
+                    style={{ width: `${profileStrength}%` }}
+                    aria-hidden
+                  />
+                </div>
+                <span className="shrink-0 text-sm font-semibold text-[#FFB15A]">{profileStrength}%</span>
+              </div>
+              <p className="mb-8 text-sm text-white/55">
+                Complete your profile to get matched with better opportunities and improve your ranking.
+              </p>
+              <Link
+                to="/expert/dashboard"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#FFB15A] px-6 py-3 text-base font-semibold text-[#25160A] no-underline transition-[filter] hover:brightness-95"
+              >
+                Go to Dashboard <span aria-hidden>→</span>
+              </Link>
             </div>
-            <p className="text-[#6c757d] text-sm mb-8">
-              Complete your profile to get matched with better opportunities and improve your ranking.
-            </p>
-            <Link
-              to="/expert/dashboard"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-[#2ea6b6] text-white font-semibold text-base no-underline hover:opacity-90 transition-opacity"
-            >
-              Go to Dashboard <span aria-hidden>→</span>
-            </Link>
           </div>
-        </div>
-      </div>
+        </main>
+      </AuthMarketingShell>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F7F8] font-sans text-gray-600 flex flex-col">
-      <header className="pt-8 pb-4">
-        <div className="max-w-lg mx-auto px-6 flex flex-col items-center">
-          <Logo to="/" variant="header" className="mb-6" />
-          <h1 className="text-2xl font-bold text-gray-900">Expert Setup</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Step {step} of {STEPS}</p>
-          <div className="w-full mt-4 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+    <AuthMarketingShell>
+      <header className="border-b border-white/10 bg-[#080C15] px-6 pb-6 pt-8">
+        <div className="mx-auto flex max-w-lg flex-col items-center px-0">
+          <h1 className="text-2xl font-semibold text-white">Expert Setup</h1>
+          <p className="mt-0.5 text-sm text-white/55">
+            Step {step} of {STEPS}
+          </p>
+          <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full bg-[#008C9E] rounded-full transition-all duration-300"
+              className="h-full rounded-full bg-[#FFB15A] transition-all duration-300"
               style={{ width: `${(step / STEPS) * 100}%` }}
               aria-hidden
             />
@@ -220,14 +224,14 @@ export function ExpertSignupPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex justify-center px-6 pb-8">
+      <main className="flex flex-1 justify-center px-6 pb-8 pt-6">
         <div className="w-full max-w-lg">
           {step === 1 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-bold text-gray-900">Let&apos;s start with the basics</h2>
-              <p className="text-sm text-gray-500 mt-0.5 mb-6">Tell us about yourself</p>
+            <div className="rounded-xl border border-white/10 bg-[#101623] p-6 shadow-[0_0_40px_rgba(0,0,0,0.25)]">
+              <h2 className="text-lg font-semibold text-white">Let&apos;s start with the basics</h2>
+              <p className="mb-6 mt-0.5 text-sm text-white/55">Tell us about yourself</p>
               {status === 'error' && displayError && (
-                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{displayError}</div>
+                <div className="mb-4 rounded-lg border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">{displayError}</div>
               )}
               <div className="space-y-4">
                 <div>
@@ -260,6 +264,7 @@ export function ExpertSignupPage() {
                     onChange={(v) => update('primaryDomain', v)}
                     options={PRIMARY_DOMAINS}
                     placeholder="Select your domain"
+                    variant="dark"
                   />
                 </div>
                 <div>
@@ -270,14 +275,15 @@ export function ExpertSignupPage() {
                     onChange={(v) => update('experienceRange', v)}
                     options={EXPERIENCE_RANGES}
                     placeholder="Select experience range"
+                    variant="dark"
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
+              <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-6">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 text-gray-700 text-sm font-medium hover:bg-gray-100 rounded-lg transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/85 transition-colors hover:bg-white/5"
                 >
                   <span aria-hidden>←</span> Back
                 </button>
@@ -285,7 +291,7 @@ export function ExpertSignupPage() {
                   type="button"
                   onClick={handleContinue}
                   disabled={!isStep1Valid()}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#008C9E] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#FFB15A] px-5 py-2.5 text-sm font-semibold text-[#25160A] transition-[filter] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Continue <span aria-hidden>→</span>
                 </button>
@@ -294,9 +300,9 @@ export function ExpertSignupPage() {
           )}
 
           {step === 2 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-bold text-gray-900">What do you offer?</h2>
-              <p className="text-sm text-gray-500 mt-0.5 mb-6">Select all that apply</p>
+            <div className="rounded-xl border border-white/10 bg-[#101623] p-6 shadow-[0_0_40px_rgba(0,0,0,0.25)]">
+              <h2 className="text-lg font-semibold text-white">What do you offer?</h2>
+              <p className="mb-6 mt-0.5 text-sm text-white/55">Select all that apply</p>
               <div className="grid grid-cols-2 gap-4">
                 {SERVICE_OFFERINGS.map(({ id, title, description, Icon }) => {
                   const isSelected = selectedServices.includes(id)
@@ -305,34 +311,34 @@ export function ExpertSignupPage() {
                       key={id}
                       type="button"
                       onClick={() => toggleService(id)}
-                      className={`relative flex flex-col items-center justify-center p-5 rounded-xl border-2 transition-colors ${
-                        isSelected ? 'border-[#008C9E] bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'
+                      className={`relative flex flex-col items-center justify-center rounded-xl border-2 p-5 transition-colors ${
+                        isSelected ? 'border-[#FFB15A] bg-[#0D1018] shadow-sm' : 'border-white/10 bg-[#0D1018] hover:border-white/20'
                       }`}
                     >
                       {isSelected && <CheckmarkCircle />}
                       <span
-                        className={`flex items-center justify-center w-12 h-12 rounded-lg mb-3 ${isSelected ? 'bg-[#008C9E]' : 'bg-gray-200'}`}
+                        className={`mb-3 flex h-12 w-12 items-center justify-center rounded-lg ${isSelected ? 'bg-[#FFB15A]' : 'bg-white/10'}`}
                       >
-                        <Icon stroke={isSelected ? 'white' : TEAL} className="w-6 h-6" />
+                        <Icon stroke={isSelected ? '#25160A' : ACCENT} className="h-6 w-6" />
                       </span>
-                      <span className="font-bold text-gray-900 text-[15px] text-center">{title}</span>
-                      <span className="text-sm text-gray-500 mt-0.5 text-center">{description}</span>
+                      <span className="text-center text-[15px] font-bold text-white">{title}</span>
+                      <span className="mt-0.5 text-center text-sm text-white/55">{description}</span>
                     </button>
                   )
                 })}
               </div>
-              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
+              <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-6">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 text-gray-700 text-sm font-medium hover:bg-gray-100 rounded-lg transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/85 transition-colors hover:bg-white/5"
                 >
                   <span aria-hidden>←</span> Back
                 </button>
                 <button
                   type="button"
                   onClick={handleContinue}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#008C9E] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#FFB15A] px-5 py-2.5 text-sm font-semibold text-[#25160A] transition-[filter] hover:brightness-95"
                 >
                   Continue <span aria-hidden>→</span>
                 </button>
@@ -341,15 +347,15 @@ export function ExpertSignupPage() {
           )}
 
           {step === 3 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-bold text-gray-900">Quick snapshot</h2>
-              <p className="text-sm text-gray-500 mt-0.5 mb-6">Help us match you better</p>
+            <div className="rounded-xl border border-white/10 bg-[#101623] p-6 shadow-[0_0_40px_rgba(0,0,0,0.25)]">
+              <h2 className="text-lg font-semibold text-white">Quick snapshot</h2>
+              <p className="mb-6 mt-0.5 text-sm text-white/55">Help us match you better</p>
               {status === 'error' && displayError && (
-                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">{displayError}</div>
+                <div className="mb-4 rounded-lg border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">{displayError}</div>
               )}
 
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-800 mb-3">Target Audience (select multiple)</h3>
+                <h3 className="mb-3 text-sm font-medium text-white/85">Target Audience (select multiple)</h3>
                 <div className="flex flex-wrap gap-2">
                   {TARGET_AUDIENCES.map((item) => {
                     const isSelected = targetAudience.includes(item)
@@ -358,10 +364,10 @@ export function ExpertSignupPage() {
                         key={item}
                         type="button"
                         onClick={() => toggleTargetAudience(item)}
-                        className={`inline-flex items-center gap-2 rounded-lg text-sm font-medium border transition-colors ${
+                        className={`inline-flex items-center gap-2 rounded-lg border text-sm font-medium transition-colors ${
                           isSelected
-                            ? 'bg-[#2391B1] text-white border-[#2391B1] pl-3 pr-2 py-2'
-                            : 'bg-white text-gray-800 border-gray-200 hover:border-gray-300 px-4 py-2'
+                            ? 'border-[#FFB15A] bg-[#FFB15A]/20 py-2 pl-3 pr-2 text-[#FFB15A]'
+                            : 'border-white/15 bg-[#0D1018] px-4 py-2 text-white/85 hover:border-white/25'
                         }`}
                       >
                         {item}
@@ -380,7 +386,7 @@ export function ExpertSignupPage() {
               </div>
 
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-800 mb-3">Delivery Mode</h3>
+                <h3 className="mb-3 text-sm font-medium text-white/85">Delivery Mode</h3>
                 <div className="flex flex-wrap gap-2">
                   {DELIVERY_MODES.map((mode) => {
                     const isSelected = deliveryMode === mode
@@ -389,10 +395,10 @@ export function ExpertSignupPage() {
                         key={mode}
                         type="button"
                         onClick={() => setDeliveryMode(mode)}
-                        className={`px-4 py-2.5 rounded-lg text-sm font-medium border-2 transition-colors ${
+                        className={`rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                           isSelected
-                            ? 'bg-[#D2F2FA] text-gray-900 border-[#2391B1]'
-                            : 'bg-white text-gray-800 border-gray-200 hover:border-gray-300'
+                            ? 'border-[#FFB15A] bg-[#FFB15A]/15 text-[#FFB15A]'
+                            : 'border-white/15 bg-[#0D1018] text-white/85 hover:border-white/25'
                         }`}
                       >
                         {mode}
@@ -403,9 +409,9 @@ export function ExpertSignupPage() {
               </div>
 
               <div className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-gray-800">Expected Fee Range (per engagement)</h3>
-                  <span className="text-sm font-medium" style={{ color: STEP3_TEAL }}>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-white/85">Expected Fee Range (per engagement)</h3>
+                  <span className="text-sm font-medium text-[#FFB15A]">
                     ₹{feeRange.toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -418,22 +424,22 @@ export function ExpertSignupPage() {
                     value={feeRange}
                     onChange={(e) => setFeeRange(Number(e.target.value))}
                     style={{
-                      background: `linear-gradient(to right, ${STEP3_SLIDER_FILL} 0%, ${STEP3_SLIDER_FILL} ${((feeRange - FEE_MIN) / (FEE_MAX - FEE_MIN)) * 100}%, #e5e7eb ${((feeRange - FEE_MIN) / (FEE_MAX - FEE_MIN)) * 100}%, #e5e7eb 100%)`,
+                      background: `linear-gradient(to right, ${STEP3_SLIDER_FILL} 0%, ${STEP3_SLIDER_FILL} ${((feeRange - FEE_MIN) / (FEE_MAX - FEE_MIN)) * 100}%, rgba(255,255,255,0.12) ${((feeRange - FEE_MIN) / (FEE_MAX - FEE_MIN)) * 100}%, rgba(255,255,255,0.12) 100%)`,
                     }}
-                    className="w-full h-2 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#313238] [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-[#313238]"
+                    className="h-2 w-full cursor-pointer appearance-none rounded-full [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-[#FFB15A] [&::-moz-range-thumb]:bg-[#25160A] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#FFB15A] [&::-webkit-slider-thumb]:bg-[#25160A] [&::-webkit-slider-thumb]:shadow"
                   />
                 </div>
-                <div className="flex justify-between mt-1 text-xs text-gray-500">
+                <div className="mt-1 flex justify-between text-xs text-white/45">
                   <span>₹10,000</span>
                   <span>₹5,00,000</span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between border-t border-white/10 pt-6">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 text-gray-700 text-sm font-medium hover:bg-gray-100 rounded-lg"
+                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/85 hover:bg-white/5"
                 >
                   ← Back
                 </button>
@@ -441,7 +447,7 @@ export function ExpertSignupPage() {
                   type="button"
                   onClick={handleContinue}
                   disabled={loading}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#008C9E] text-white text-sm font-medium hover:opacity-90 disabled:opacity-70"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#FFB15A] px-5 py-2.5 text-sm font-semibold text-[#25160A] hover:brightness-95 disabled:opacity-70"
                 >
                   {loading ? 'Creating account…' : 'Finish Setup'} <span aria-hidden>→</span>
                 </button>
@@ -451,11 +457,13 @@ export function ExpertSignupPage() {
         </div>
       </main>
 
-      <footer className="py-4 px-6">
-        <p className="text-sm text-gray-400">
-          <Link to="/privacy" className="text-gray-400 no-underline hover:text-gray-600">Manage cookies or opt out</Link>
+      <footer className="px-6 py-4">
+        <p className="text-sm text-white/35">
+          <Link to="/privacy" className="text-white/45 no-underline hover:text-white/70">
+            Manage cookies or opt out
+          </Link>
         </p>
       </footer>
-    </div>
+    </AuthMarketingShell>
   )
 }

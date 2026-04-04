@@ -58,6 +58,8 @@ const userSchema = new mongoose.Schema(
     avatarUrl: { type: String, trim: true, default: "" },
     /** Expert profile (Identity, Capability, Experience, Delivery, Pricing, Availability). Only for type=expert. */
     expertProfile: { type: mongoose.Schema.Types.Mixed, default: {} },
+    passwordResetTokenHash: { type: String, select: false, default: "" },
+    passwordResetExpires: { type: Date, select: false },
   },
   { timestamps: true }
 );

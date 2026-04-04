@@ -20,6 +20,7 @@ export interface BusinessScheduledSession {
   requirementId: string
   requirementTitle: string
   companyName: string
+  expertName: string
   sessionType: string
   status: 'pending' | 'confirmed'
   scheduledDate: string

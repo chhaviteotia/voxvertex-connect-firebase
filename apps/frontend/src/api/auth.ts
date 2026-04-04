@@ -63,6 +63,29 @@ export async function signup(body: SignUpBody): Promise<AuthResponse> {
   })
 }
 
+export interface MessageResponse {
+  success: boolean
+  message?: string
+  error?: string
+}
+
+export async function requestPasswordReset(body: { email: string }): Promise<MessageResponse> {
+  return request<MessageResponse>('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function resetPasswordWithToken(body: {
+  token: string
+  password: string
+}): Promise<MessageResponse> {
+  return request<MessageResponse>('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export function setAuthToken(token: string) {
   if (typeof window !== 'undefined') window.localStorage.setItem('auth_token', token)
 }

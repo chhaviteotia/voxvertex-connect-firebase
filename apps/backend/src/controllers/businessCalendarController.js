@@ -1,3 +1,4 @@
+const User = require("../models/User");
 const {
   proposalRepository,
   requirementRepository,
@@ -180,14 +181,32 @@ async function listScheduledSessions(req, res) {
     }
     const sessions = await scheduledSessionRepository.listByRequirementIds(requirementIds);
     const requirementById = new Map(requirements.map((r) => [String(r._id), r]));
+    const expertObjectIds = [...new Set(sessions.map((s) => s.expertId).filter(Boolean))];
+    const expertDocs =
+      expertObjectIds.length > 0
+        ? await User.find({ _id: { $in: expertObjectIds } })
+            .select("name firstName lastName email")
+            .lean()
+        : [];
+    const expertNameById = new Map();
+    expertDocs.forEach((u) => {
+      const name =
+        (u.name && String(u.name).trim()) ||
+        [u.firstName, u.lastName].filter(Boolean).join(" ").trim() ||
+        (u.email ? String(u.email).split("@")[0] : "") ||
+        "Expert";
+      expertNameById.set(String(u._id), name);
+    });
     const data = sessions.map((s) => {
       const rid = s.requirementId ? String(s.requirementId) : "";
       const reqDoc = requirementById.get(rid);
+      const eid = s.expertId != null ? String(s.expertId) : "";
       return {
         id: String(s._id),
         requirementId: rid,
         requirementTitle: reqDoc ? getRequirementTitle(reqDoc.formData) : "Expert requirement",
         companyName: s.companyName || "",
+        expertName: eid ? expertNameById.get(eid) || "Expert" : "Expert",
         sessionType: s.sessionType || "",
         status: s.status || "confirmed",
         scheduledDate: s.scheduledDate,

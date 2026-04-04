@@ -5,17 +5,7 @@ import { useAppSelector } from '../store/hooks'
 import { selectUser } from '../store/selectors/authSelectors'
 import { useAppDispatch } from '../store/hooks'
 import { logout } from '../store/slices/authSlice'
-
-function getDisplayName(user: unknown): string {
-  if (!user || typeof user !== 'object') return ''
-  const u = user as Record<string, unknown>
-  const preferred = [u.name, u.fullName, u.contactName, u.companyName]
-    .find((value) => typeof value === 'string' && value.trim().length > 0)
-  if (typeof preferred === 'string') return preferred.trim()
-  const email = typeof u.email === 'string' ? u.email.trim() : ''
-  if (email.includes('@')) return email.split('@')[0]
-  return email
-}
+import { getUserDisplayName } from '../utils/userDisplayName'
 
 export function Header() {
   const dispatch = useAppDispatch()
@@ -23,7 +13,7 @@ export function Header() {
   const user = useAppSelector(selectUser)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const displayName = getDisplayName(user)
+  const displayName = getUserDisplayName(user)
   const isLoggedIn = Boolean(user && displayName)
   const userType = user?.type === 'expert' ? 'expert' : user?.type === 'business' ? 'business' : null
   const dashboardPath = userType === 'expert' ? '/expert/dashboard' : '/business/dashboard'

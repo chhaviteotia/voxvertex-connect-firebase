@@ -10,6 +10,7 @@ export interface AvailabilityWindow {
 export interface ScheduledSession {
   id: string
   requirementId?: string
+  requirementTitle?: string
   companyName: string
   sessionType: string
   status: 'pending' | 'confirmed'

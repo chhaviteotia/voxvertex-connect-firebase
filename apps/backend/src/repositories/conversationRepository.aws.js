@@ -15,6 +15,10 @@ async function listByExpertUser() {
 }
 async function updateUpdatedAt() {}
 
+async function countByExpertUser() {
+  return 0;
+}
+
 module.exports = {
   create,
   findById,
@@ -22,4 +26,5 @@ module.exports = {
   listByBusinessUser,
   listByExpertUser,
   updateUpdatedAt,
+  countByExpertUser,
 };

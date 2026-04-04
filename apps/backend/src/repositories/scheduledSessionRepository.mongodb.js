@@ -1,4 +1,13 @@
+const mongoose = require("mongoose");
 const ScheduledSession = require("../models/ScheduledSession");
+
+function toObjectId(id) {
+  if (id == null) return id;
+  if (typeof id === "string" && mongoose.Types.ObjectId.isValid(id) && id.length === 24) {
+    return new mongoose.Types.ObjectId(id);
+  }
+  return id;
+}
 
 async function listByExpert(expertId, options = {}) {
   const { upcomingOnly = true } = options;
@@ -50,6 +59,27 @@ async function listByRequirementIds(requirementIds = []) {
   return docs;
 }
 
+/** Confirmed sessions whose scheduled date is already in the past (treated as completed). */
+async function countCompletedByExpert(expertId) {
+  const eid = toObjectId(expertId);
+  return ScheduledSession.countDocuments({
+    expertId: eid,
+    status: "confirmed",
+    scheduledDate: { $lt: new Date() },
+  });
+}
+
+async function countCompletedByExpertInRange(expertId, start, end) {
+  const eid = toObjectId(expertId);
+  const now = new Date();
+  const capEnd = end.getTime() > now.getTime() ? now : end;
+  return ScheduledSession.countDocuments({
+    expertId: eid,
+    status: "confirmed",
+    scheduledDate: { $gte: start, $lt: capEnd },
+  });
+}
+
 module.exports = {
   listByExpert,
   create,
@@ -58,4 +88,6 @@ module.exports = {
   countUpcomingByExpert,
   countByStatus,
   listByRequirementIds,
+  countCompletedByExpert,
+  countCompletedByExpertInRange,
 };

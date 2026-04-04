@@ -72,6 +72,10 @@ async function updateUpdatedAt(id) {
   await Conversation.updateOne({ _id: toObjectId(id) }, { $set: { updatedAt: new Date() } });
 }
 
+async function countByExpertUser(expertUserId, extraFilter = {}) {
+  return Conversation.countDocuments({ expertUserId: toObjectId(expertUserId), ...extraFilter });
+}
+
 module.exports = {
   create,
   findById,
@@ -79,4 +83,5 @@ module.exports = {
   listByBusinessUser,
   listByExpertUser,
   updateUpdatedAt,
+  countByExpertUser,
 };

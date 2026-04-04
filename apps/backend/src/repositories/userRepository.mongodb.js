@@ -43,6 +43,35 @@ async function updateById(id, update) {
   return updated ? omitPassword(updated) : null;
 }
 
+async function setPasswordResetTokenByEmail(email, tokenHash, expiresAt) {
+  const result = await User.updateMany(
+    { email: email.trim().toLowerCase() },
+    { $set: { passwordResetTokenHash: tokenHash, passwordResetExpires: expiresAt } }
+  );
+  return result.modifiedCount;
+}
+
+async function findUserIdsByPasswordResetToken(tokenHash) {
+  const users = await User.find({
+    passwordResetTokenHash: tokenHash,
+    passwordResetExpires: { $gt: new Date() },
+  })
+    .select("_id")
+    .lean();
+  return users.map((u) => u._id);
+}
+
+async function completePasswordResetForUserIds(ids, hashedPassword) {
+  if (!ids || ids.length === 0) return;
+  await User.updateMany(
+    { _id: { $in: ids } },
+    {
+      $set: { password: hashedPassword },
+      $unset: { passwordResetTokenHash: 1, passwordResetExpires: 1 },
+    }
+  );
+}
+
 function omitPassword(obj) {
   if (!obj) return obj;
   const out = { ...obj };
@@ -55,6 +84,9 @@ module.exports = {
   findByEmailAndType,
   findByEmailForAuth,
   findById,
-   findByIdForAuth,
-   updateById,
+  findByIdForAuth,
+  updateById,
+  setPasswordResetTokenByEmail,
+  findUserIdsByPasswordResetToken,
+  completePasswordResetForUserIds,
 };

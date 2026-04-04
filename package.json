@@ -9,9 +9,9 @@
     "check-types": "turbo run check-types",
     "firebase:login": "firebase login",
     "firebase:use": "firebase use",
-    "firebase:deploy": "npm run build --workspace=frontend && firebase deploy",
+    "firebase:deploy": "firebase deploy",
     "firebase:emulators": "firebase emulators:start",
-    "firebase:deploy:hosting": "npm run build --workspace=frontend && firebase deploy --only hosting",
+    "firebase:deploy:hosting": "firebase deploy --only hosting",
     "firebase:deploy:functions": "firebase deploy --only functions",
     "firebase:deploy:rules": "firebase deploy --only firestore:rules",
     "firebase:deploy:storage": "firebase deploy --only storage"

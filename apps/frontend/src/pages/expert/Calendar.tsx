@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { expertSidebarItems, expertSidebarBottomItems } from '../../config/expertNav'
 import { useAppSelector } from '../../store/hooks'
 import { selectUser } from '../../store/selectors/authSelectors'
-import { IconCalendar, IconClock } from '../../components/layout/DashboardIcons'
+import { IconCalendar, IconClock, IconVideo, IconMapPin } from '../../components/layout/DashboardIcons'
 import {
   getAvailability,
   createAvailability,
@@ -241,10 +241,30 @@ export function ExpertCalendar() {
 
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const upcomingSessions = sessions.filter((s) => new Date(s.scheduledDate) >= todayStart)
+  const upcomingSessions = [...sessions.filter((s) => new Date(s.scheduledDate) >= todayStart)].sort(
+    (a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime()
+  )
   const pastSessions = sessions
     .filter((s) => new Date(s.scheduledDate) < todayStart)
     .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime())
+
+  const sessionOverview = useMemo(() => {
+    const upcoming = upcomingSessions
+    const past = pastSessions
+    return {
+      upcomingTotal: upcoming.length,
+      confirmedUpcoming: upcoming.filter((s) => s.status === 'confirmed').length,
+      pendingUpcoming: upcoming.filter((s) => s.status === 'pending').length,
+      completed: past.length,
+      nextSession: upcoming[0],
+    }
+  }, [upcomingSessions, pastSessions])
+
+  function formatSessionTypeLabel(raw: string) {
+    return String(raw || 'Session')
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase())
+  }
 
   return (
     <DashboardLayout
@@ -594,25 +614,64 @@ export function ExpertCalendar() {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Quick Stats</h2>
-              <div className="grid grid-cols-2 gap-y-3 text-sm">
-                <div>
-                  <p className="text-xs text-gray-500">Active Windows</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.activeWindows ?? 0}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Upcoming Sessions</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.upcomingSessions ?? 0}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Pending</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.pending ?? 0}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Completed</p>
-                  <p className="text-lg font-semibold text-[#008C9E]">{stats?.completed ?? 0}</p>
-                </div>
-              </div>
+              <h2 className="text-base font-semibold text-gray-900">Session overview</h2>
+              <p className="text-sm text-gray-500 mt-0.5 mb-4">Based on your scheduled sessions</p>
+              {loading ? (
+                <p className="text-sm text-gray-500">Loading…</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-[#D7DEE8] bg-[#F5FAFE] p-4">
+                      <p className="text-2xl font-bold text-[#0EA5C4]">{sessionOverview.upcomingTotal}</p>
+                      <p className="mt-1 text-xs text-gray-500">Upcoming sessions</p>
+                    </div>
+                    <div className="rounded-xl border border-[#D7EBD9] bg-[#F3FBF6] p-4">
+                      <p className="text-2xl font-bold text-[#1E8D51]">{sessionOverview.confirmedUpcoming}</p>
+                      <p className="mt-1 text-xs text-gray-500">Confirmed</p>
+                    </div>
+                    <div className="rounded-xl border border-[#EEE2CF] bg-[#FFF8EE] p-4">
+                      <p className="text-2xl font-bold text-[#C87400]">{sessionOverview.pendingUpcoming}</p>
+                      <p className="mt-1 text-xs text-gray-500">Pending</p>
+                    </div>
+                    <div className="rounded-xl border border-[#D7DEE8] bg-[#FAFBFD] p-4">
+                      <p className="text-2xl font-bold text-[#4B5563]">{sessionOverview.completed}</p>
+                      <p className="mt-1 text-xs text-gray-500">Completed</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-[#BFE8EF] bg-[#F3FCFF] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#1590A8]">Next session</p>
+                    {sessionOverview.nextSession ? (
+                      <>
+                        <p className="mt-2 text-lg font-semibold text-gray-900">
+                          {sessionOverview.nextSession.requirementTitle || sessionOverview.nextSession.companyName}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">{sessionOverview.nextSession.companyName}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                          <span className="inline-flex items-center gap-1.5">
+                            <IconCalendar className="h-4 w-4" />
+                            {formatWindowDate(sessionOverview.nextSession.scheduledDate)}
+                          </span>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <IconClock className="h-4 w-4" />
+                            {[sessionOverview.nextSession.startTime, sessionOverview.nextSession.endTime]
+                              .filter(Boolean)
+                              .join(' – ') || 'Time TBD'}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-gray-500">No upcoming sessions.</p>
+                    )}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-500">Availability windows</p>
+                      <p className="text-lg font-semibold text-[#008C9E]">{stats?.activeWindows ?? windows.length}</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -629,22 +688,70 @@ export function ExpertCalendar() {
             </div>
           ) : (
             <div className="space-y-3">
-              {upcomingSessions.map((s) => (
-                <div key={s.id} className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-[#1F2937]">{s.companyName}</p>
-                    <span className="rounded-md border border-[#E5E7EB] bg-white px-2 py-0.5 text-xs font-semibold text-[#64748B]">
-                      {s.status === 'confirmed' ? 'Confirmed' : 'Pending'}
-                    </span>
+              {upcomingSessions.map((s) => {
+                const loc = s.location || ''
+                const isLink =
+                  /^https?:\/\//i.test(loc) || loc.toLowerCase().includes('zoom') || loc.toLowerCase().includes('meet.')
+                return (
+                  <div key={s.id} className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-[#1F2937]">
+                        {s.requirementTitle || s.companyName}
+                      </p>
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                          s.status === 'confirmed'
+                            ? 'bg-[#E8F8EE] text-[#1E8D51]'
+                            : 'bg-[#FFF4D7] text-[#A56A00]'
+                        }`}
+                      >
+                        {s.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-[#64748B]">
+                      {s.companyName} • {formatSessionTypeLabel(s.sessionType)}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-4 text-sm text-[#64748B]">
+                      <span className="inline-flex items-center gap-1.5">
+                        <IconCalendar className="h-4 w-4 shrink-0" />
+                        {formatWindowDate(s.scheduledDate)}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <IconClock className="h-4 w-4 shrink-0" />
+                        {[s.startTime, s.endTime].filter(Boolean).join(' – ') || '—'}
+                      </span>
+                      {loc ? (
+                        <span className="inline-flex items-center gap-1.5 min-w-0">
+                          {isLink ? <IconVideo className="h-4 w-4 shrink-0" /> : <IconMapPin className="h-4 w-4 shrink-0" />}
+                          {isLink ? (
+                            <a
+                              href={loc.startsWith('http') ? loc : `https://${loc}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="truncate text-[#008C9E] underline"
+                            >
+                              Join link
+                            </a>
+                          ) : (
+                            <span className="truncate">{loc}</span>
+                          )}
+                        </span>
+                      ) : null}
+                    </div>
+                    {s.status === 'pending' && (
+                      <button
+                        type="button"
+                        disabled={confirmingSessionId === s.id}
+                        onClick={() => handleConfirmSession(s.id)}
+                        className="mt-3 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ backgroundColor: TEAL }}
+                      >
+                        {confirmingSessionId === s.id ? 'Confirming…' : 'Confirm session'}
+                      </button>
+                    )}
                   </div>
-                  <p className="mt-1 text-sm text-[#94A3B8]">
-                    {String(s.sessionType || 'Session')
-                      .replace(/[-_]/g, ' ')
-                      .replace(/\b\w/g, (ch) => ch.toUpperCase())}{' '}
-                    • {formatWindowDate(s.scheduledDate)}
-                  </p>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -652,22 +759,21 @@ export function ExpertCalendar() {
 
           <p className="text-sm font-semibold text-[#64748B] mb-3">Past Sessions ({pastSessions.length})</p>
           <div className="space-y-3">
-            {pastSessions.map((s) => (
-              <div key={s.id} className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-[#1F2937]">{s.companyName}</p>
-                  <span className="rounded-md border border-[#E5E7EB] bg-white px-2 py-0.5 text-xs font-semibold text-[#64748B]">
-                    Completed
-                  </span>
+            {pastSessions.length === 0 ? (
+              <p className="text-sm text-gray-500 py-2">No past sessions.</p>
+            ) : (
+              pastSessions.map((s) => (
+                <div key={s.id} className="rounded-xl border border-[#E5E7EB] bg-[#FAFBFD] px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-[#1F2937]">{s.requirementTitle || s.companyName}</p>
+                    <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">Completed</span>
+                  </div>
+                  <p className="mt-1 text-sm text-[#94A3B8]">
+                    {s.companyName} • {formatSessionTypeLabel(s.sessionType)} • {formatWindowDate(s.scheduledDate)}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-[#94A3B8]">
-                  {String(s.sessionType || 'Session')
-                    .replace(/[-_]/g, ' ')
-                    .replace(/\b\w/g, (ch) => ch.toUpperCase())}{' '}
-                  • {formatWindowDate(s.scheduledDate)}
-                </p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

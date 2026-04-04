@@ -4,7 +4,7 @@ import { DashboardLayout } from '../../layouts/DashboardLayout'
 import { businessSidebarItems, businessSidebarBottomItems } from '../../config/businessNav'
 import { IconDocument, IconUsers, IconTrendingUp } from '../../components/layout/DashboardIcons'
 import { listRequirements, type RequirementResponse } from '../../api/requirements'
-import { listProposalsByRequirement } from '../../api/proposals'
+import { listProposalsByRequirement, type ProposalResponse } from '../../api/proposals'
 
 const TEAL = '#2293B4'
 
@@ -36,6 +36,11 @@ function getTitleFromFormData(formData: Record<string, unknown>): string {
 function getRelativeTime(createdAt: string): string {
   const created = new Date(createdAt)
   const diffMs = Date.now() - created.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
   const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
   if (diffDays <= 0) return 'today'
   if (diffDays < 7) return `${diffDays}d ago`
@@ -45,31 +50,94 @@ function getRelativeTime(createdAt: string): string {
   return `${diffMonths}mo ago`
 }
 
+function startOfTodayMs(): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+function isCreatedToday(iso: string): boolean {
+  return new Date(iso).getTime() >= startOfTodayMs()
+}
+
 function toRequirementStatus(requirement: RequirementResponse, proposalCount: number): RequirementCardStatus {
   if (requirement.status === 'published' && proposalCount > 0) return 'In Review'
   return 'Active'
 }
 
-const ACTIVITIES = [
-  { description: 'New proposal from Sarah Johnson for AI Training', time: '2 hours ago' },
-  { description: 'Expert match found for Leadership Workshop', time: '5 hours ago' },
-  { description: "Requirement 'Sales Training' published", time: '1 day ago' },
-]
+type ActivityItem = { description: string; time: string }
 
 export function Dashboard() {
   const [requirements, setRequirements] = useState<RequirementResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [proposalCountByRequirementId, setProposalCountByRequirementId] = useState<Record<string, number>>({})
+  const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([])
+  const [proposalsTodayCount, setProposalsTodayCount] = useState(0)
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setLoadError(null)
+
     listRequirements()
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return
-        if (res.success && Array.isArray(res.requirements)) {
-          setRequirements(res.requirements)
+        if (!res.success || !Array.isArray(res.requirements)) {
+          setRequirements([])
+          setProposalCountByRequirementId({})
+          setRecentActivities([])
+          setProposalsTodayCount(0)
+          return
         }
+        setRequirements(res.requirements)
+
+        const active = res.requirements.filter((r) => r.status !== 'draft')
+        const counts: Record<string, number> = {}
+        const proposalRows: Array<{ proposal: ProposalResponse; requirementTitle: string }> = []
+
+        await Promise.all(
+          active.map(async (requirement) => {
+            try {
+              const response = await listProposalsByRequirement(requirement.id, { limit: 50, skip: 0 })
+              if (!response.success) {
+                counts[requirement.id] = 0
+                return
+              }
+              const list = response.proposals ?? []
+              const total = response.total ?? list.length
+              counts[requirement.id] = total
+              const requirementTitle = getTitleFromFormData(requirement.formData || {})
+              list.forEach((proposal) => {
+                proposalRows.push({ proposal, requirementTitle })
+              })
+            } catch {
+              counts[requirement.id] = 0
+            }
+          })
+        )
+
+        if (cancelled) return
+        setProposalCountByRequirementId(counts)
+
+        const todayCount = proposalRows.filter((row) => isCreatedToday(row.proposal.createdAt)).length
+        setProposalsTodayCount(todayCount)
+
+        const fromProposals = proposalRows.map(({ proposal, requirementTitle }) => {
+          const expertName = proposal.expert?.name?.trim() || 'An expert'
+          return {
+            description: `New proposal from ${expertName} for ${requirementTitle}`,
+            time: getRelativeTime(proposal.createdAt),
+            sortKey: new Date(proposal.createdAt).getTime(),
+          }
+        })
+
+        setRecentActivities(
+          fromProposals
+            .sort((a, b) => b.sortKey - a.sortKey)
+            .slice(0, 12)
+            .map(({ description, time }) => ({ description, time }))
+        )
       })
       .catch((error) => {
         if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Failed to load dashboard data')
@@ -77,34 +145,11 @@ export function Dashboard() {
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
     return () => {
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    if (requirements.length === 0) {
-      setProposalCountByRequirementId({})
-      return
-    }
-    let cancelled = false
-    Promise.all(
-      requirements.map(async (requirement) => {
-        try {
-          const response = await listProposalsByRequirement(requirement.id, { limit: 1, skip: 0 })
-          return [requirement.id, response.success ? response.total ?? 0 : 0] as const
-        } catch {
-          return [requirement.id, 0] as const
-        }
-      })
-    ).then((entries) => {
-      if (cancelled) return
-      setProposalCountByRequirementId(Object.fromEntries(entries))
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [requirements])
 
   const activeRequirements = useMemo(
     () =>
@@ -120,6 +165,14 @@ export function Dashboard() {
         (total, requirement) => total + (proposalCountByRequirementId[requirement.id] ?? 0),
         0
       ),
+    [activeRequirements, proposalCountByRequirementId]
+  )
+
+  const draftCount = useMemo(() => requirements.filter((r) => r.status === 'draft').length, [requirements])
+
+  const requirementsWithProposals = useMemo(
+    () =>
+      activeRequirements.filter((r) => (proposalCountByRequirementId[r.id] ?? 0) > 0).length,
     [activeRequirements, proposalCountByRequirementId]
   )
 
@@ -148,32 +201,32 @@ export function Dashboard() {
       value: String(activeRequirements.length),
       label: 'Active Requirements',
       icon: IconDocument,
-      subtitle: `${activeThisWeek} this week`,
+      subtitle: `${activeThisWeek} new this week`,
       subtitleTeal: true,
       subtitleIcon: 'arrow' as const,
     },
     {
-      value: '24',
-      label: 'Expert Matches',
-      icon: IconUsers,
-      subtitle: '8 new today',
-      subtitleTeal: true,
-      subtitleIcon: 'sparkle' as const,
-    },
-    {
-      value: String(proposalsReceived),
-      label: 'Proposals Received',
+      value: String(draftCount),
+      label: 'Draft Requirements',
       icon: IconDocument,
-      subtitle: 'Across active requirements',
+      subtitle: 'Not yet published',
       subtitleTeal: false,
       subtitleIcon: null,
     },
     {
-      value: '92%',
-      label: 'Match Quality',
+      value: String(proposalsReceived),
+      label: 'Proposals Received',
+      icon: IconUsers,
+      subtitle: proposalsTodayCount > 0 ? `${proposalsTodayCount} new today` : 'Across active requirements',
+      subtitleTeal: proposalsTodayCount > 0,
+      subtitleIcon: proposalsTodayCount > 0 ? ('sparkle' as const) : null,
+    },
+    {
+      value: String(requirementsWithProposals),
+      label: 'With expert responses',
       icon: IconTrendingUp,
-      subtitle: 'Above average',
-      subtitleTeal: true,
+      subtitle: 'Active reqs that have proposals',
+      subtitleTeal: false,
       subtitleIcon: null,
     },
   ]
@@ -289,12 +342,18 @@ export function Dashboard() {
           <div className="w-full lg:w-80 shrink-0 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-5">Recent Activity</h2>
             <div className="divide-y divide-gray-200">
-              {ACTIVITIES.map((a, i) => (
-                <div key={i} className="py-4 first:pt-0">
-                  <p className="text-sm font-medium text-gray-900">{a.description}</p>
-                  <p className="text-xs text-gray-500 mt-1">{a.time}</p>
-                </div>
-              ))}
+              {loading ? (
+                <p className="py-4 text-sm text-gray-500">Loading activity…</p>
+              ) : recentActivities.length === 0 ? (
+                <p className="py-4 text-sm text-gray-500">No recent activity yet. Proposals on your requirements will show up here.</p>
+              ) : (
+                recentActivities.map((a, i) => (
+                  <div key={`${a.description}-${i}`} className="py-4 first:pt-0">
+                    <p className="text-sm font-medium text-gray-900">{a.description}</p>
+                    <p className="text-xs text-gray-500 mt-1">{a.time}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

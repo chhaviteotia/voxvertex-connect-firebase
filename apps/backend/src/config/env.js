@@ -1,18 +1,22 @@
 const path = require("path");
 const fs = require("fs");
 const dotenv = require("dotenv");
+const { isFirebaseCloudRuntime } = require("./runtime");
 
 const dotenvPath = path.resolve(__dirname, "..", "..", ".env");
-const isProduction = process.env.NODE_ENV === "production";
+const treatAsProduction =
+  process.env.NODE_ENV === "production" || isFirebaseCloudRuntime();
 
-// In production environments (Render/Railway/etc.), prefer platform env vars.
+// Prefer platform env vars in production / deployed functions.
 // Only load local `.env` during development and only if the file exists.
-if (!isProduction && fs.existsSync(dotenvPath)) {
+if (!treatAsProduction && fs.existsSync(dotenvPath)) {
   dotenv.config({ path: dotenvPath, override: false });
 }
 
 const env = {
-  NODE_ENV: process.env.NODE_ENV || "development",
+  NODE_ENV:
+    process.env.NODE_ENV ||
+    (isFirebaseCloudRuntime() ? "production" : "development"),
   PORT: (() => {
     const v = process.env.PORT;
     const n = typeof v === "string" ? parseInt(v, 10) : NaN;
@@ -49,9 +53,21 @@ const env = {
     const raw = String(process.env.DB_FALLBACK_TO_MONGODB || "true").toLowerCase().trim();
     return raw === "1" || raw === "true" || raw === "yes";
   })(),
+  /** Public site URL for password reset links (e.g. https://your-project.web.app) */
+  FRONTEND_URL: (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, ""),
+  SMTP_HOST: process.env.SMTP_HOST || "",
+  SMTP_PORT: (() => {
+    const v = process.env.SMTP_PORT;
+    const n = typeof v === "string" ? parseInt(v, 10) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : 587;
+  })(),
+  SMTP_SECURE: String(process.env.SMTP_SECURE || "").toLowerCase() === "true",
+  SMTP_USER: process.env.SMTP_USER || "",
+  SMTP_PASS: process.env.SMTP_PASS || "",
+  SMTP_FROM: process.env.SMTP_FROM || "",
 };
 
-if (env.NODE_ENV === "production" && (!env.JWT_SECRET || env.JWT_SECRET === "change-me-in-production")) {
+if (treatAsProduction && (!env.JWT_SECRET || env.JWT_SECRET === "change-me-in-production")) {
   throw new Error("JWT_SECRET must be set to a strong value in production.");
 }
 

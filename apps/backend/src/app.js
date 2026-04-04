@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const { env } = require("./config/env");
+const { isFirebaseCloudRuntime } = require("./config/runtime");
 const { connectDB } = require("./config/db");
 
 let dbReadyPromise = null;
@@ -18,6 +19,11 @@ async function createApp() {
 
   const app = express();
   app.disable("x-powered-by");
+  // One reverse-proxy hop: Firebase Hosting / Cloud Run in prod, or Vite dev proxy locally.
+  // Vite forwards X-Forwarded-For; express-rate-limit throws (500) if trust proxy stays false.
+  if (isFirebaseCloudRuntime() || env.NODE_ENV !== "production") {
+    app.set("trust proxy", 1);
+  }
 
   const allowedOrigins = env.CORS_ORIGIN
     .split(",")
@@ -52,6 +58,7 @@ async function createApp() {
   app.use("/api/business/calendar", require("./routes/businessCalendar"));
   app.use("/api/expert/profile", require("./routes/expertProfile"));
   app.use("/api/expert/proposals", require("./routes/expertProposals"));
+  app.use("/api/expert/analytics", require("./routes/expertAnalytics"));
   app.use("/api/expert/calendar", require("./routes/expertCalendar"));
   app.use("/api/expert/opportunities", require("./routes/expertOpportunities"));
   app.use("/api/system", require("./routes/system"));
